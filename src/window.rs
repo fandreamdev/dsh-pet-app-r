@@ -3,7 +3,9 @@
 //! Tauri 的 webview 窗口操作要求在（或经派发到）主线程执行，这里统一经
 //! app.run_on_main_thread 派发，从任意工作线程调用都安全。
 
-use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
 
 #[cfg(windows)]
 use crate::passthrough;
@@ -191,6 +193,14 @@ fn build_settings_window(shared: &Shared, visible: bool) -> Result<(), String> {
         })
         .build()
         .map_err(|e| format!("打开设置窗失败: {e}"))?;
+    // 点 X 只隐藏、不销毁：避免销毁后再次打开又踩到 WebView2 二次初始化问题。
+    let w2 = _win.clone();
+    _win.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = w2.hide();
+        }
+    });
     eprintln!("[settings] built label={label} visible={visible}");
     Ok(())
 }
