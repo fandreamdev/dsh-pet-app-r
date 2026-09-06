@@ -114,7 +114,7 @@ pub fn attach(label: &str, hwnd: *mut core::ffi::c_void) {
     let hwnd_typed = hwnd as HWND; // windows-sys HWND 即 *mut c_void
     let boxed = Box::new(Control { original_proc: 0, full: AtomicBool::new(false), rect: Mutex::new((0.0, 0.0, 0.0, 0.0)) });
     let raw = Box::into_raw(boxed);
-    let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC as i32, wnd_proc as usize as isize) };
+    let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC as i32, wnd_proc as *const () as usize as isize) };
     unsafe {
         (*raw).original_proc = original;
         SetWindowLongPtrW(hwnd_typed, GWLP_USERDATA as i32, raw as isize);

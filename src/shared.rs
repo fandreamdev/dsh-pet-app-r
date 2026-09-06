@@ -89,11 +89,6 @@ impl Shared {
         self.0.statuses.lock().unwrap().clear();
     }
 
-    /// 宠物 id → 窗口 label（窗口不存在返回 None）
-    pub fn window_label(&self, pet_id: &str) -> Option<String> {
-        self.0.idx.lock().unwrap().get(pet_id).map(|i| format!("pet-{i}"))
-    }
-
     /// 序号 → 宠物 id
     pub fn id_by_index(&self, index: usize) -> Option<String> {
         self.0.id_of.lock().unwrap().get(index).cloned()

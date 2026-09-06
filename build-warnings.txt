@@ -1,0 +1,37 @@
+﻿cargo :    Compiling dsh-pet-rust v0.1.0 (D:\pet\dsh-pet-rust)
+At line:1 char:129
++ ... g = [System.Text.UTF8Encoding]::new($false); cargo build 2>&1 | Out-F ...
++                                                  ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling ds...t\dsh-pet-rust):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: method `window_label` is never used
+  --> src\shared.rs:93:12
+   |
+61 | impl Shared {
+   | ----------- method in this implementation
+...
+93 |     pub fn window_label(&self, pet_id: &str) -> Option<String> {
+   |            ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: direct cast of function item into an integer
+   --> src\passthrough.rs:117:89
+    |
+117 |     let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC as i32, wnd_proc as usize as isize) };
+    |                                                                                         ^^^^^^^^
+    |
+    = note: `#[warn(function_casts_as_integer)]` on by default
+help: first cast to a pointer `as *const ()`
+    |
+117 |     let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC as i32, wnd_proc as *const () as usize as 
+isize) };
+    |                                                                                         ++++++++++++
+
+warning: `dsh-pet-rust` (bin "dsh-pet-rust") generated 2 warnings (run `cargo fix --bin "dsh-pet-rust" -p dsh-pet-rust`
+ to apply 1 suggestion)
+error: failed to remove file `D:\environment\Rust\.cargo\target\debug\dsh-pet-rust.exe`
+
+Caused by:
+  拒绝访问。 (os error 5)
