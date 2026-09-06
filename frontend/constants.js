@@ -28,7 +28,7 @@ const FONT_URL = API + '/font/';
 const PIC_URL = API + '/pic/';
 
 const BUBBLE_DURATION_MS = 10 * 1000;
-const WINDOW_MARGIN_RATIO = 0.5;
+const WINDOW_MARGIN_RATIO = 0.22; // 与 src/window.rs 保持一致：外扩余量（收窄，减小点击遮挡）
 
 // ---------- 全局状态 ----------
 const rootEl = document.getElementById('root');

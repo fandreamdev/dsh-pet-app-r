@@ -7,7 +7,7 @@ use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBu
 
 use crate::shared::{Shared, StaticBox};
 
-pub const WIN_MARGIN_RATIO: f64 = 0.5; // 窗口四周外扩 = 宠物宽 × 比例
+pub const WIN_MARGIN_RATIO: f64 = 0.22; // 窗口四周外扩 = 宠物宽 × 比例（与 frontend/constants.js 保持一致）
 pub const SCREEN_H: f64 = 360.0;
 pub const FEET_Y: f64 = 330.0;
 
@@ -42,7 +42,7 @@ pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: u
         pet_index, api_base, work_area.0 as u32, work_area.1 as u32
     );
     let lab = label.clone();
-    let win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(page.into()))
+    let _win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(page.into()))
         .title("dsh-pet-rust")
         .inner_size(w, h)
         .transparent(true)
@@ -57,8 +57,8 @@ pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: u
         })
         .build()
         .map_err(|e| format!("建窗失败 {label}: {e}"))?;
-    // 默认整窗穿透
-    let _ = win.set_ignore_cursor_events(true);
+    // 交互模型：窗口始终可交互（WebView2/Tauri 无 Electron 式事件转发，整窗穿透+悬停翻转
+    // 会变成“永远点不中”）；外扩余量已收窄到 0.22×size，遮挡面积最小化。
     Ok(())
 }
 
@@ -84,16 +84,10 @@ pub fn set_bounds_by_index(shared: &Shared, index: usize, x: f64, y: f64, w: f64
 }
 
 /// 点击穿透翻转（按窗口序号）。
-pub fn set_interactive_by_index(shared: &Shared, index: usize, interactive: bool) {
-    let app = shared.0.app.clone();
-    let app2 = app.clone();
-    let label = format!("pet-{index}");
-    let _ = app.run_on_main_thread(move || {
-        if let Some(win) = app2.get_webview_window(&label) {
-            let _ = win.set_ignore_cursor_events(!interactive);
-        }
-    });
-}
+///
+/// 交互模型 v1：窗口始终可交互，本调用为 no-op（保留通道以兼容前端 sprite 的 setInteractive，
+/// 避免改动渲染端事件逻辑）。后续若做“区域级穿透”，这里应切换到 WM_NCHITTEST 命中模式。
+pub fn set_interactive_by_index(_shared: &Shared, _index: usize, _interactive: bool) {}
 
 /// 打开设置窗（单例）。
 pub fn open_settings_window(shared: &Shared) -> Result<(), String> {
