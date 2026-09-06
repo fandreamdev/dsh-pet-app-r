@@ -89,6 +89,8 @@ pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: u
 }
 
 /// 位置跟随（按窗口序号）。box_* 为包围盒工作区坐标（碰撞站场登记用）。
+// 10 个参数与上游 Electron 版 setBounds 一一对应；后续可收敛为结构体，暂显式放行该 lint。
+#[allow(clippy::too_many_arguments)]
 pub fn set_bounds_by_index(shared: &Shared, index: usize, x: f64, y: f64, w: f64, h: f64, box_x: f64, box_y: f64, size: f64, bottom_pad: f64) {
     let pet_id = shared.id_by_index(index);
     if let Some(pet_id) = pet_id {

@@ -5,8 +5,8 @@
 //! （对应前端 sprite 的 setInteractive(true)）。
 //!
 //! 实现：SetWindowLongPtrW(GWLP_WNDPROC) 子类化并拦截 WM_NCHITTEST。屏幕坐标→客户区坐标
-//! 用 GetWindowRect/GetClientRect 换算（不依赖 ScreenToClient 的位置差异）；命中框几何与
-//! 前端 sprite（HIT_BOX 200,50,440,335）一致，由 window.rs 每次 set_bounds 同步。
+//! 用 GetWindowRect/GetClientRect 换算；命中框几何与前端 sprite（HIT_BOX 200,50,440,335）
+//! 一致，由 window.rs 每次 set_bounds 同步。
 
 #![cfg(windows)]
 
@@ -39,7 +39,7 @@ fn registry() -> &'static Mutex<HashMap<String, (usize, usize)>> {
 }
 
 unsafe fn control_of(hwnd: HWND) -> *mut Control {
-    GetWindowLongPtrW(hwnd, GWLP_USERDATA as i32) as *mut Control
+    GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Control
 }
 
 fn remove_registry_by(ptr: usize, hwnd: usize) {
@@ -94,9 +94,9 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
             let ptr = ctl as usize;
             let hwnd_usize = hwnd as usize;
             if orig_saved != 0 {
-                SetWindowLongPtrW(hwnd, GWLP_WNDPROC as i32, orig_saved);
+                SetWindowLongPtrW(hwnd, GWLP_WNDPROC, orig_saved);
             }
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA as i32, 0);
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             remove_registry_by(ptr, hwnd_usize);
             let _ = Box::from_raw(ctl);
             return CallWindowProcW(std::mem::transmute::<isize, WndProc>(orig_saved), hwnd, msg, wparam, lparam);
@@ -114,10 +114,10 @@ pub fn attach(label: &str, hwnd: *mut core::ffi::c_void) {
     let hwnd_typed = hwnd as HWND; // windows-sys HWND 即 *mut c_void
     let boxed = Box::new(Control { original_proc: 0, full: AtomicBool::new(false), rect: Mutex::new((0.0, 0.0, 0.0, 0.0)) });
     let raw = Box::into_raw(boxed);
-    let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC as i32, wnd_proc as *const () as usize as isize) };
+    let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC, wnd_proc as *const () as usize as isize) };
     unsafe {
         (*raw).original_proc = original;
-        SetWindowLongPtrW(hwnd_typed, GWLP_USERDATA as i32, raw as isize);
+        SetWindowLongPtrW(hwnd_typed, GWLP_USERDATA, raw as isize);
     }
     registry().lock().unwrap().insert(label.to_string(), (hwnd as usize, raw as usize));
 }
@@ -149,9 +149,9 @@ pub fn detach(label: &str) {
         let orig = unsafe { (*ctl).original_proc };
         unsafe {
             if orig != 0 {
-                SetWindowLongPtrW(hwnd, GWLP_WNDPROC as i32, orig);
+                SetWindowLongPtrW(hwnd, GWLP_WNDPROC, orig);
             }
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA as i32, 0);
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             let _ = Box::from_raw(ctl);
         }
     }

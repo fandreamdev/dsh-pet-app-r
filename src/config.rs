@@ -259,7 +259,7 @@ pub fn read_merged(default_dir: &Path, user_dir: &Path) -> Result<Value, String>
                     p.is_file()
                         && p.file_name()
                             .and_then(|n| n.to_str())
-                            .is_some_and(|n| regex_like_config_name(n))
+                            .is_some_and(regex_like_config_name)
                 })
                 .collect();
             files.sort();
@@ -312,7 +312,7 @@ pub fn save_user_config(payload: &Value, _default_dir: &Path, user_dir: &Path) -
     for (i, p) in raw_pets.iter().enumerate() {
         match normalize_pet(p, i) {
             Ok(p) => pets.push(p),
-            Err(e) => return Err(format!("{e}")),
+            Err(e) => return Err(e.to_string()),
         }
     }
     let pets = dedupe_pets(&pets);
