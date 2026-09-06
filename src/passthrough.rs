@@ -14,10 +14,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, RECT};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallWindowProcW, GetClientRect, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, GWLP_USERDATA,
-    GWLP_WNDPROC, HTCLIENT, HTTRANSPARENT, WM_NCDESTROY, WM_NCHITTEST,
+    CallWindowProcW, GetClientRect, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW,
+    GWLP_USERDATA, GWLP_WNDPROC, HTCLIENT, HTTRANSPARENT, WM_NCDESTROY, WM_NCHITTEST,
 };
 
 type WndProc = Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT>;
@@ -58,8 +58,18 @@ fn remove_registry_by(ptr: usize, hwnd: usize) {
 
 /// 屏幕坐标 → 窗口客户区坐标（frameless，直接用窗口矩形与客户区矩形换算）。
 unsafe fn screen_to_client(hwnd: HWND, sx: i32, sy: i32) -> Option<(i32, i32)> {
-    let mut wr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-    let mut cr = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    let mut wr = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    let mut cr = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
     if GetWindowRect(hwnd, &mut wr) == 0 || GetClientRect(hwnd, &mut cr) == 0 {
         return None;
     }
@@ -68,9 +78,18 @@ unsafe fn screen_to_client(hwnd: HWND, sx: i32, sy: i32) -> Option<(i32, i32)> {
     Some((sx - dx, sy - dy))
 }
 
-unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     let ctl = control_of(hwnd);
-    let orig = if ctl.is_null() { 0 } else { (*ctl).original_proc };
+    let orig = if ctl.is_null() {
+        0
+    } else {
+        (*ctl).original_proc
+    };
     match msg {
         WM_NCHITTEST if !ctl.is_null() => {
             let c = &*ctl;
@@ -99,11 +118,23 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             remove_registry_by(ptr, hwnd_usize);
             let _ = Box::from_raw(ctl);
-            return CallWindowProcW(std::mem::transmute::<isize, WndProc>(orig_saved), hwnd, msg, wparam, lparam);
+            return CallWindowProcW(
+                std::mem::transmute::<isize, WndProc>(orig_saved),
+                hwnd,
+                msg,
+                wparam,
+                lparam,
+            );
         }
         _ => {}
     }
-    CallWindowProcW(std::mem::transmute::<isize, WndProc>(orig), hwnd, msg, wparam, lparam)
+    CallWindowProcW(
+        std::mem::transmute::<isize, WndProc>(orig),
+        hwnd,
+        msg,
+        wparam,
+        lparam,
+    )
 }
 
 /// 绑定窗口（创建后、主线程上调用一次）。hwnd 为原生窗口句柄（raw pointer）。
@@ -112,14 +143,27 @@ pub fn attach(label: &str, hwnd: *mut core::ffi::c_void) {
         return;
     }
     let hwnd_typed = hwnd as HWND; // windows-sys HWND 即 *mut c_void
-    let boxed = Box::new(Control { original_proc: 0, full: AtomicBool::new(false), rect: Mutex::new((0.0, 0.0, 0.0, 0.0)) });
+    let boxed = Box::new(Control {
+        original_proc: 0,
+        full: AtomicBool::new(false),
+        rect: Mutex::new((0.0, 0.0, 0.0, 0.0)),
+    });
     let raw = Box::into_raw(boxed);
-    let original = unsafe { SetWindowLongPtrW(hwnd_typed, GWLP_WNDPROC, wnd_proc as *const () as usize as isize) };
+    let original = unsafe {
+        SetWindowLongPtrW(
+            hwnd_typed,
+            GWLP_WNDPROC,
+            wnd_proc as *const () as usize as isize,
+        )
+    };
     unsafe {
         (*raw).original_proc = original;
         SetWindowLongPtrW(hwnd_typed, GWLP_USERDATA, raw as isize);
     }
-    registry().lock().unwrap().insert(label.to_string(), (hwnd as usize, raw as usize));
+    registry()
+        .lock()
+        .unwrap()
+        .insert(label.to_string(), (hwnd as usize, raw as usize));
 }
 
 /// 更新命中框（窗口客户区坐标）。

@@ -33,9 +33,18 @@ async fn cors_preflight(req: Request<Body>, next: Next) -> Response {
 fn cors() -> HeaderMap {
     let mut h = HeaderMap::new();
     h.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-    h.insert(header::ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap());
-    h.insert(header::ACCESS_CONTROL_ALLOW_HEADERS, "content-type, range".parse().unwrap());
-    h.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, "content-range, content-length".parse().unwrap());
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_METHODS,
+        "GET, POST, PUT, DELETE, OPTIONS".parse().unwrap(),
+    );
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_HEADERS,
+        "content-type, range".parse().unwrap(),
+    );
+    h.insert(
+        header::ACCESS_CONTROL_EXPOSE_HEADERS,
+        "content-range, content-length".parse().unwrap(),
+    );
     h
 }
 
@@ -82,7 +91,8 @@ async fn get_meta(State(shared): State<Shared>) -> Response {
 fn schedule_rebuild(shared: Shared) {
     let app = shared.0.app.clone();
     let _ = app.run_on_main_thread(move || {
-        let merged = config::read_merged(&shared.0.asset_root, &shared.0.user_dir).unwrap_or_else(|_| Value::Object(Default::default()));
+        let merged = config::read_merged(&shared.0.asset_root, &shared.0.user_dir)
+            .unwrap_or_else(|_| Value::Object(Default::default()));
         let _ = window::rebuild_pet_windows(&shared, &merged);
     });
 }
@@ -96,7 +106,11 @@ fn parse_range(range: &str, len: usize) -> Option<(usize, usize)> {
     if start >= len {
         return None;
     }
-    let end: usize = if b.is_empty() { len - 1 } else { b.parse::<usize>().ok()?.min(len - 1) };
+    let end: usize = if b.is_empty() {
+        len - 1
+    } else {
+        b.parse::<usize>().ok()?.min(len - 1)
+    };
     if end < start {
         return None;
     }
@@ -104,25 +118,46 @@ fn parse_range(range: &str, len: usize) -> Option<(usize, usize)> {
 }
 
 async fn serve_file(shared: &Shared, host: &str, path_seg: &str, headers: HeaderMap) -> Response {
-    let Some(file) = assets::resolve_asset(&shared.0.asset_root, &shared.0.user_dir, host, path_seg) else {
-        return (StatusCode::NOT_FOUND, cors(), "pet-asset: not found".to_string()).into_response();
+    let Some(file) =
+        assets::resolve_asset(&shared.0.asset_root, &shared.0.user_dir, host, path_seg)
+    else {
+        return (
+            StatusCode::NOT_FOUND,
+            cors(),
+            "pet-asset: not found".to_string(),
+        )
+            .into_response();
     };
     let mime = assets::mime_of(&file);
     let data = match tokio::fs::read(&file).await {
         Ok(d) => d,
-        Err(e) => return jerr(StatusCode::INTERNAL_SERVER_ERROR, &format!("read {:?}: {e}", file)),
+        Err(e) => {
+            return jerr(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &format!("read {:?}: {e}", file),
+            )
+        }
     };
     let len = data.len();
     let mut resp_headers = cors();
     resp_headers.insert(header::CONTENT_TYPE, mime.parse().unwrap());
     resp_headers.insert(header::ACCEPT_RANGES, "bytes".parse().unwrap());
-    resp_headers.insert(header::CACHE_CONTROL, "public, max-age=3600".parse().unwrap());
+    resp_headers.insert(
+        header::CACHE_CONTROL,
+        "public, max-age=3600".parse().unwrap(),
+    );
 
     if let Some(range) = headers.get(header::RANGE).and_then(|v| v.to_str().ok()) {
         if let Some((start, end)) = parse_range(range, len) {
             let slice = data[start..=end].to_vec();
-            resp_headers.insert(header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}").parse().unwrap());
-            resp_headers.insert(header::CONTENT_LENGTH, slice.len().to_string().parse().unwrap());
+            resp_headers.insert(
+                header::CONTENT_RANGE,
+                format!("bytes {start}-{end}/{len}").parse().unwrap(),
+            );
+            resp_headers.insert(
+                header::CONTENT_LENGTH,
+                slice.len().to_string().parse().unwrap(),
+            );
             return (StatusCode::PARTIAL_CONTENT, resp_headers, Body::from(slice)).into_response();
         }
     }
@@ -130,13 +165,25 @@ async fn serve_file(shared: &Shared, host: &str, path_seg: &str, headers: Header
     (StatusCode::OK, resp_headers, Body::from(data)).into_response()
 }
 
-async fn get_thumb(State(shared): State<Shared>, AxPath((root, file)): AxPath<(String, String)>, headers: HeaderMap) -> Response {
+async fn get_thumb(
+    State(shared): State<Shared>,
+    AxPath((root, file)): AxPath<(String, String)>,
+    headers: HeaderMap,
+) -> Response {
     serve_file(&shared, "thumb", &format!("{root}/{file}"), headers).await
 }
-async fn get_font(State(shared): State<Shared>, AxPath(file): AxPath<String>, headers: HeaderMap) -> Response {
+async fn get_font(
+    State(shared): State<Shared>,
+    AxPath(file): AxPath<String>,
+    headers: HeaderMap,
+) -> Response {
     serve_file(&shared, "font", &file, headers).await
 }
-async fn get_pic(State(shared): State<Shared>, AxPath(file): AxPath<String>, headers: HeaderMap) -> Response {
+async fn get_pic(
+    State(shared): State<Shared>,
+    AxPath(file): AxPath<String>,
+    headers: HeaderMap,
+) -> Response {
     serve_file(&shared, "pic", &file, headers).await
 }
 
@@ -183,11 +230,25 @@ struct CollideBody {
 }
 
 async fn post_bounds(State(shared): State<Shared>, Json(b): Json<BoundsBody>) -> Response {
-    window::set_bounds_by_index(&shared, b.index, b.x, b.y, b.width, b.height, b.box_x, b.box_y, b.size, b.bottom_pad);
+    window::set_bounds_by_index(
+        &shared,
+        b.index,
+        b.x,
+        b.y,
+        b.width,
+        b.height,
+        b.box_x,
+        b.box_y,
+        b.size,
+        b.bottom_pad,
+    );
     jobj(json!({ "ok": true }))
 }
 
-async fn post_interactive(State(shared): State<Shared>, Json(b): Json<InteractiveBody>) -> Response {
+async fn post_interactive(
+    State(shared): State<Shared>,
+    Json(b): Json<InteractiveBody>,
+) -> Response {
     window::set_interactive_by_index(&shared, b.index, b.interactive);
     jobj(json!({ "ok": true }))
 }
@@ -195,14 +256,26 @@ async fn post_interactive(State(shared): State<Shared>, Json(b): Json<Interactiv
 async fn post_flight(State(shared): State<Shared>, Json(b): Json<FlightBody>) -> Response {
     shared.0.flight.lock().unwrap().insert(
         b.pet.clone(),
-        crate::shared::FlightState { id: b.pet.clone(), x: b.x, y: b.y, size: b.size, bottom_pad: b.bottom_pad, vx: b.vx, vy: b.vy },
+        crate::shared::FlightState {
+            id: b.pet.clone(),
+            x: b.x,
+            y: b.y,
+            size: b.size,
+            bottom_pad: b.bottom_pad,
+            vx: b.vx,
+            vy: b.vy,
+        },
     );
     let _ = shared.0.ev.send(ServerEvent::Flight(shared.snapshot()));
     jobj(json!({ "ok": true }))
 }
 
 async fn post_collide(State(shared): State<Shared>, Json(b): Json<CollideBody>) -> Response {
-    let _ = shared.0.ev.send(ServerEvent::Hit { pet: b.target_id.clone(), vx: b.vx, vy: b.vy });
+    let _ = shared.0.ev.send(ServerEvent::Hit {
+        pet: b.target_id.clone(),
+        vx: b.vx,
+        vy: b.vy,
+    });
     jobj(json!({ "ok": true }))
 }
 
@@ -241,7 +314,8 @@ struct EventsQuery {
 }
 
 async fn sse_events(State(shared): State<Shared>, Query(q): Query<EventsQuery>) -> Response {
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<SseEvent, std::convert::Infallible>>();
+    let (tx, rx) =
+        tokio::sync::mpsc::unbounded_channel::<Result<SseEvent, std::convert::Infallible>>();
     let mut broadcast_rx = shared.0.ev.subscribe();
     let pet_filter = q.pet.clone();
     tokio::spawn(async move {
@@ -251,14 +325,20 @@ async fn sse_events(State(shared): State<Shared>, Query(q): Query<EventsQuery>) 
                 Err(_) => break, // 发送端关闭
             };
             let (name, data): (&str, String) = match evt {
-                ServerEvent::Flight(v) => ("flight", serde_json::to_string(&v).unwrap_or_else(|_| "[]".into())),
+                ServerEvent::Flight(v) => (
+                    "flight",
+                    serde_json::to_string(&v).unwrap_or_else(|_| "[]".into()),
+                ),
                 ServerEvent::Hit { pet, vx, vy } => {
                     if let Some(f) = &pet_filter {
                         if f != &pet {
                             continue;
                         }
                     }
-                    ("hit", serde_json::to_string(&json!({ "vx": vx, "vy": vy })).unwrap_or_default())
+                    (
+                        "hit",
+                        serde_json::to_string(&json!({ "vx": vx, "vy": vy })).unwrap_or_default(),
+                    )
                 }
                 ServerEvent::ConfigChanged => ("config", "{}".into()),
             };
@@ -279,7 +359,10 @@ async fn sse_events(State(shared): State<Shared>, Query(q): Query<EventsQuery>) 
 
 fn router() -> Router<Shared> {
     Router::new()
-        .route("/config", get(get_config).put(put_config).delete(del_config))
+        .route(
+            "/config",
+            get(get_config).put(put_config).delete(del_config),
+        )
         .route("/meta", get(get_meta))
         .route("/thumb/{root}/{file}", get(get_thumb))
         .route("/font/{file}", get(get_font))
@@ -305,7 +388,9 @@ async fn handle_fallback(method: Method) -> Response {
 
 /// 启动本地服务（127.0.0.1 随机端口），把 base 写回 shared；返回 base url。
 pub async fn start(shared: Shared) -> Result<String, String> {
-    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.map_err(|e| format!("bind 失败: {e}"))?;
+    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .map_err(|e| format!("bind 失败: {e}"))?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let base = format!("http://127.0.0.1:{port}");
     shared.set_api_base(base.clone());

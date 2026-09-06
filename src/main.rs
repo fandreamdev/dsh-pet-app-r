@@ -28,22 +28,35 @@ fn main() {
                 eprintln!("[dsh-pet-rust] 未找到素材根（可用 DSH_PET_ASSET_ROOT 指定）");
                 std::env::current_dir().unwrap_or_default().join("assets")
             });
-            let user_dir = app
-                .path()
-                .app_data_dir()
-                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join("user-data"));
+            let user_dir = app.path().app_data_dir().unwrap_or_else(|_| {
+                std::env::current_dir()
+                    .unwrap_or_default()
+                    .join("user-data")
+            });
             std::fs::create_dir_all(&user_dir).ok();
 
             // 共享状态 + 本地服务（先拿端口，窗口 query 需要）
             let shared = Shared::new(app.handle().clone(), asset_root.clone(), user_dir.clone());
             let base = tauri::async_runtime::block_on(server::start(shared.clone()))?;
-            eprintln!("[dsh-pet-rust] asset_root={} api={}", asset_root.display(), base);
+            eprintln!(
+                "[dsh-pet-rust] asset_root={} api={}",
+                asset_root.display(),
+                base
+            );
 
             // 托盘
             let toggle_item = MenuItem::with_id(app, "toggle", "隐藏宠物", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle_item, &settings_item, &PredefinedMenuItem::separator(app)?, &quit_item])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &toggle_item,
+                    &settings_item,
+                    &PredefinedMenuItem::separator(app)?,
+                    &quit_item,
+                ],
+            )?;
             let mut tray_builder = TrayIconBuilder::with_id("tray")
                 .tooltip("dsh-pet-rust")
                 .menu(&menu)

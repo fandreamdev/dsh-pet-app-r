@@ -36,7 +36,9 @@ pub fn discover_asset_root() -> Option<PathBuf> {
 }
 
 fn ext_ok(name: &str) -> bool {
-    let Some((_, ext)) = name.rsplit_once('.') else { return false };
+    let Some((_, ext)) = name.rsplit_once('.') else {
+        return false;
+    };
     ALLOWED_EXT.contains(&ext.to_ascii_lowercase().as_str())
 }
 
@@ -57,7 +59,12 @@ fn safe_resolve(root: &Path, rel: &str) -> Option<PathBuf> {
 /// 解析素材 URL 段：host = thumb | font | pic。
 /// thumb 的 path 形如 <root>/<file>：main 先查 userData/custom/main-animation/webm，再查包内 webm；
 /// 其它 root 只查 userData/custom/<root>-animation/webm。
-pub fn resolve_asset(pkg_root: &Path, user_dir: &Path, host: &str, path_seg: &str) -> Option<PathBuf> {
+pub fn resolve_asset(
+    pkg_root: &Path,
+    user_dir: &Path,
+    host: &str,
+    path_seg: &str,
+) -> Option<PathBuf> {
     let file_name = path_seg.rsplit('/').next().unwrap_or("");
     if !ext_ok(file_name) {
         return None;
@@ -94,7 +101,11 @@ pub fn resolve_asset(pkg_root: &Path, user_dir: &Path, host: &str, path_seg: &st
 
 /// 推断 content-type。
 pub fn mime_of(path: &Path) -> &'static str {
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     match ext.as_str() {
         "webm" => "video/webm",
         "ttf" => "font/ttf",

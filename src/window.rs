@@ -39,7 +39,8 @@ fn browser_args() -> &'static str {
         } else {
             base.to_string()
         }
-    }).as_str()
+    })
+    .as_str()
 }
 
 /// 由宠物尺寸推算窗口内容区尺寸。
@@ -51,7 +52,14 @@ pub fn window_size_for(size: f64) -> (f64, f64) {
 }
 
 /// 创建单只宠物窗（index.html?petIndex&api&workArea…）。窗口 label = pet-<序号>。
-pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: usize, api_base: &str, work_area: (f64, f64)) -> Result<(), String> {
+pub fn create_pet_window(
+    shared: &Shared,
+    _pet_id: &str,
+    size: f64,
+    pet_index: usize,
+    api_base: &str,
+    work_area: (f64, f64),
+) -> Result<(), String> {
     let app = &shared.0.app;
     let (w, h) = window_size_for(size);
     let label = format!("pet-{pet_index}");
@@ -71,7 +79,11 @@ pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: u
         .resizable(false)
         .additional_browser_args(browser_args())
         .on_page_load(move |_win, payload| {
-            eprintln!("[window] {lab} page_load {:?} url={}", payload.event(), payload.url());
+            eprintln!(
+                "[window] {lab} page_load {:?} url={}",
+                payload.event(),
+                payload.url()
+            );
         })
         .build()
         .map_err(|e| format!("建窗失败 {label}: {e}"))?;
@@ -91,12 +103,28 @@ pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: u
 /// 位置跟随（按窗口序号）。box_* 为包围盒工作区坐标（碰撞站场登记用）。
 // 10 个参数与上游 Electron 版 setBounds 一一对应；后续可收敛为结构体，暂显式放行该 lint。
 #[allow(clippy::too_many_arguments)]
-pub fn set_bounds_by_index(shared: &Shared, index: usize, x: f64, y: f64, w: f64, h: f64, box_x: f64, box_y: f64, size: f64, bottom_pad: f64) {
+pub fn set_bounds_by_index(
+    shared: &Shared,
+    index: usize,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    box_x: f64,
+    box_y: f64,
+    size: f64,
+    bottom_pad: f64,
+) {
     let pet_id = shared.id_by_index(index);
     if let Some(pet_id) = pet_id {
         shared.0.static_boxes.lock().unwrap().insert(
             pet_id.clone(),
-            StaticBox { x: box_x, y: box_y, size, bottom_pad },
+            StaticBox {
+                x: box_x,
+                y: box_y,
+                size,
+                bottom_pad,
+            },
         );
         shared.0.flight.lock().unwrap().remove(&pet_id);
     }

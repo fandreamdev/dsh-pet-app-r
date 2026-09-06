@@ -70,7 +70,8 @@ fn parse_json(value: &Value, path: &str) -> Result<Value, String> {
 }
 
 pub fn read_json_file(file: &Path) -> Result<Value, String> {
-    let raw = std::fs::read_to_string(file).map_err(|e| format!("读取失败 {}: {e}", file.display()))?;
+    let raw =
+        std::fs::read_to_string(file).map_err(|e| format!("读取失败 {}: {e}", file.display()))?;
     let raw = raw.strip_prefix('\u{feff}').unwrap_or(&raw);
     let text = if file.extension().is_some_and(|e| e == "jsonc") {
         strip_jsonc(raw)
@@ -113,7 +114,11 @@ fn normalize_pet(raw: &Value, index: usize) -> Result<Value, String> {
         return Err(format!("pets[{index}] id 缺失/非法"));
     }
     let size = num(obj.get("size"), 462.0).max(1.0);
-    let pos = obj.get("position").and_then(|p| p.as_object()).cloned().unwrap_or_default();
+    let pos = obj
+        .get("position")
+        .and_then(|p| p.as_object())
+        .cloned()
+        .unwrap_or_default();
     let corner = match pos.get("corner").and_then(|c| c.as_str()) {
         Some(c) if CORNERS.contains(&c) => c.to_string(),
         _ => "top-right".to_string(),
@@ -126,12 +131,28 @@ fn normalize_pet(raw: &Value, index: usize) -> Result<Value, String> {
     };
     let name = str_of(obj.get("name"), &id);
     let mut out = Map::new();
-    out.insert("name".into(), Value::String(if name.trim().is_empty() { id.clone() } else { name.trim().to_string() }));
+    out.insert(
+        "name".into(),
+        Value::String(if name.trim().is_empty() {
+            id.clone()
+        } else {
+            name.trim().to_string()
+        }),
+    );
     out.insert("id".into(), Value::String(id));
     out.insert("size".into(), json!(size));
-    out.insert("balanceEnabled".into(), json!(bool_of(obj.get("balanceEnabled"), false)));
-    out.insert("whisperEnabled".into(), json!(bool_of(obj.get("whisperEnabled"), false)));
-    out.insert("workStatusEnabled".into(), json!(bool_of(obj.get("workStatusEnabled"), false)));
+    out.insert(
+        "balanceEnabled".into(),
+        json!(bool_of(obj.get("balanceEnabled"), false)),
+    );
+    out.insert(
+        "whisperEnabled".into(),
+        json!(bool_of(obj.get("whisperEnabled"), false)),
+    );
+    out.insert(
+        "workStatusEnabled".into(),
+        json!(bool_of(obj.get("workStatusEnabled"), false)),
+    );
     out.insert("display".into(), Value::String(display));
     out.insert(
         "position".into(),
@@ -144,7 +165,11 @@ fn dedupe_pets(list: &[Value]) -> Vec<Value> {
     let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
     for p in list {
-        let id = p.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let id = p
+            .get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         if seen.contains(&id) {
             continue;
         }
@@ -174,15 +199,26 @@ fn merge_entry(def: &Value, override_value: Option<&Value>) -> Value {
     if let Some(ov) = override_value {
         if let (Some(m), Some(o)) = (merged.as_object_mut(), ov.as_object()) {
             for (k, v) in o {
-                if k != "pets" && k != "physics" && k != "animations" && k != "animationWeights" && k != "eventsRefreshSec" {
+                if k != "pets"
+                    && k != "physics"
+                    && k != "animations"
+                    && k != "animationWeights"
+                    && k != "eventsRefreshSec"
+                {
                     m.insert(k.clone(), v.clone());
                 }
             }
         }
     }
     // 物理
-    let def_phys = def.get("physics").cloned().unwrap_or_else(|| normalize_physics(&Value::Null));
-    let phys = override_value.and_then(|o| o.get("physics")).map(normalize_physics).unwrap_or(def_phys);
+    let def_phys = def
+        .get("physics")
+        .cloned()
+        .unwrap_or_else(|| normalize_physics(&Value::Null));
+    let phys = override_value
+        .and_then(|o| o.get("physics"))
+        .map(normalize_physics)
+        .unwrap_or(def_phys);
     if let Some(m) = merged.as_object_mut() {
         m.insert("physics".into(), phys);
     }
@@ -191,7 +227,12 @@ fn merge_entry(def: &Value, override_value: Option<&Value>) -> Value {
         .and_then(|o| o.get("pets"))
         .and_then(|p| p.as_array())
         .cloned()
-        .unwrap_or_else(|| def.get("pets").and_then(|p| p.as_array()).cloned().unwrap_or_default());
+        .unwrap_or_else(|| {
+            def.get("pets")
+                .and_then(|p| p.as_array())
+                .cloned()
+                .unwrap_or_default()
+        });
     let mut pets: Vec<Value> = Vec::new();
     for (i, p) in raw_pets.iter().enumerate() {
         match normalize_pet(p, i) {
@@ -275,7 +316,9 @@ pub fn read_merged(default_dir: &Path, user_dir: &Path) -> Result<Value, String>
                 }
                 let anim_dir = custom_dir.join(format!("{prefix}-animation")).join("webm");
                 if !anim_dir.is_dir() {
-                    eprintln!("[config] custom 品种 {prefix} 缺少 {prefix}-animation/ 目录，已跳过");
+                    eprintln!(
+                        "[config] custom 品种 {prefix} 缺少 {prefix}-animation/ 目录，已跳过"
+                    );
                     continue;
                 }
                 match read_json_file(&f) {
@@ -296,7 +339,11 @@ fn regex_like_config_name(name: &str) -> bool {
 }
 
 /// 保存用户配置（设置页）：白名单重建 pets/physics 等，透传保留其它既有顶层手改字段。
-pub fn save_user_config(payload: &Value, _default_dir: &Path, user_dir: &Path) -> Result<(), String> {
+pub fn save_user_config(
+    payload: &Value,
+    _default_dir: &Path,
+    user_dir: &Path,
+) -> Result<(), String> {
     let payload = payload.as_object().ok_or("payload 不是对象")?;
     let user_file = user_dir.join("config.json");
     let existing: Value = if user_file.exists() {
@@ -307,7 +354,11 @@ pub fn save_user_config(payload: &Value, _default_dir: &Path, user_dir: &Path) -
     let mut out = existing.as_object().cloned().unwrap_or_default();
 
     // pets
-    let raw_pets = payload.get("pets").ok_or("缺少 pets")?.as_array().ok_or("pets 不是数组")?;
+    let raw_pets = payload
+        .get("pets")
+        .ok_or("缺少 pets")?
+        .as_array()
+        .ok_or("pets 不是数组")?;
     let mut pets: Vec<Value> = Vec::new();
     for (i, p) in raw_pets.iter().enumerate() {
         match normalize_pet(p, i) {
@@ -351,7 +402,11 @@ pub fn desktop_pets(merged: &Value) -> Vec<(String, f64)> {
                 for p in pets {
                     let display = p.get("display").and_then(|d| d.as_str()).unwrap_or("");
                     if display == "desktop" || display == "both" {
-                        let id = p.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                        let id = p
+                            .get("id")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         let size = p.get("size").and_then(|x| x.as_f64()).unwrap_or(462.0);
                         out.push((id, size));
                     }
