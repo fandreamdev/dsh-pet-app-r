@@ -27,25 +27,24 @@ ts/              渲染端 **TypeScript 源码**（constants/bridge/sprite/rende
 frontend/        TS 编译产物（*.js，供 index.html/settings.html 加载）+ shared-core.js 构建产物
 ```
 
-## Release 运行（双击 exe）
+## 打包安装器（推荐分发/日常使用）
 
-release 是 GUI 程序（无控制台），且**素材不内嵌进 exe**——需要 assets/ 与 exe 同级或在其上级能找到。
-
-**一键运行（推荐，不需要手动找素材）**：双击仓库根的 `run-release.cmd`
-
-- 若 `dist-win/` 不存在会自动 `cargo build --release` + 打包 `dist-win/`（exe+assets 同级）再启动；
-- 代码有改动想重编时用：`run-release.cmd rebuild`。
-
-手动方式：
+生成 **NSIS 安装包**，装好后程序从安装目录自动读取素材，**无需源码、无需手动找 assets**：
 
 ```sh
-cargo build --release
-node scripts/stage-dist.mjs     # 生成 dist-win/（exe + assets 同级）
-# 双击 dist-win\dsh-pet-rust.exe 即可运行
+npm install
+# 若直连 github 下载 NSIS 超时，先设镜像：
+# $env:TAURI_BUNDLER_TOOLS_GITHUB_MIRROR='https://ghproxy.net/https://github.com/'
+npm run tauri -- build
 ```
 
-> 找不到素材时程序会弹系统提示框并只留托盘（不再静默消失）。也可把 exe 直接放到仓库根（assets 同级）运行，
-> 或用环境变量 `DSH_PET_ASSET_ROOT` 指向素材目录。
+产物：`target/release/bundle/nsis/dsh-pet-rust_0.1.0_x64-setup.exe`（安装到 `%LOCALAPPDATA%\dsh-pet-rust`，可静默安装 `/S`）。
+
+## 开发期一键运行（不打包）
+
+release 是 GUI 程序（无控制台），开发期**双击仓库根 `run-release.cmd`** 即可自动构建+打包 `dist-win/`（exe+assets 同级）并启动；`run-release.cmd rebuild` 强制重编。
+
+> 找不到素材时程序会弹系统提示框并只留托盘（不再静默消失）；可用环境变量 `DSH_PET_ASSET_ROOT` 指向素材目录。
 
 ## 前端 TypeScript
 

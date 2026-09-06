@@ -40,7 +40,11 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             // 素材根：找不到时给用户可见提示（release 无控制台），并继续运行托盘等待修复
-            let Some(asset_root) = assets::discover_asset_root() else {
+            let mut extra_roots = Vec::new();
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                extra_roots.push(resource_dir.join("assets"));
+            }
+            let Some(asset_root) = assets::discover_asset_root(&extra_roots) else {
                 warn_user(
                     "dsh-pet-rust 未找到素材目录 assets/\n\n请把本程序放到仓库根目录运行，\n或用环境变量 DSH_PET_ASSET_ROOT 指向包含 config.jsonc 与 webm/ 的目录。",
                 );

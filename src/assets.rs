@@ -1,10 +1,10 @@
 //! assets.rs —— 素材根定位与安全解析（语义同 dsh-pet-app main/asset-server.js）。
 //!
-//! 本仓库完全自包含：assets/（webm/fonts/pic/config.jsonc）随仓库维护，运行时不再依赖
-//! 任何外部目录。资源根候选（按序取第一个存在且结构完整的）：
+//! 本仓库完全自包含：assets/（webm/fonts/pic/config.jsonc）随仓库维护；安装包会把 assets 作为
+//! 资源装进程序目录（resources/assets）。候选按序取第一个存在且结构完整的：
 //!   1. 环境变量 DSH_PET_ASSET_ROOT（显式指定）
 //!   2. <cwd>/assets                        （开发：cargo run / 从仓库根启动）
-//!   3. <exe 目录>/assets                   （打包后随程序分发）
+//!   3. 调用方传入的额外候选（安装包资源目录 resources/assets 等）
 //!   4. <exe 目录> 逐级向父目录找 assets     （源码树里从 target/release 双击 exe 也能定位仓库根）
 use std::path::{Path, PathBuf};
 
@@ -14,7 +14,7 @@ fn looks_like_root(p: &Path) -> bool {
     p.join("config.jsonc").exists() && p.join("webm").is_dir()
 }
 
-pub fn discover_asset_root() -> Option<PathBuf> {
+pub fn discover_asset_root(extra_roots: &[PathBuf]) -> Option<PathBuf> {
     if let Ok(env) = std::env::var("DSH_PET_ASSET_ROOT") {
         let p = PathBuf::from(env);
         if looks_like_root(&p) {
@@ -26,7 +26,13 @@ pub fn discover_asset_root() -> Option<PathBuf> {
     if looks_like_root(&cwd_assets) {
         return Some(cwd_assets);
     }
-    // 打包/源码树：从 exe 所在目录向上逐级找 assets（target/release → 仓库根/资源目录）
+    // 安装包等传入的候选（资源目录）
+    for root in extra_roots {
+        if looks_like_root(root) {
+            return Some(root.clone());
+        }
+    }
+    // 源码树：从 exe 所在目录向上逐级找 assets（target/release → 仓库根/资源目录）
     if let Ok(exe) = std::env::current_exe() {
         let mut probe = match exe.parent() {
             Some(d) => d.to_path_buf(),

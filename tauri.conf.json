@@ -13,8 +13,19 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all",
-    "icon": ["icons/icon.ico"]
+    "active": true,
+    "targets": ["nsis"],
+    "category": "Entertainment",
+    "shortDescription": "独立桌宠 dsh-pet-rust",
+    "longDescription": "dsh-pet 桌宠的 Rust(Tauri 2) 独立版：动画链/交互/多开/托盘/设置，全部本地运行。",
+    "icon": ["icons/icon.ico"],
+    "resources": ["assets/**/*"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": true,
+        "languages": ["SimpChinese", "English"]
+      }
+    }
   }
 }
