@@ -13,7 +13,7 @@ mod window;
 
 use shared::Shared;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent};
 
@@ -101,14 +101,29 @@ fn main() {
                 VISIBLE.store(next, Ordering::Relaxed);
                 let shared = app.state::<Shared>();
                 window::set_visible_all(&shared, next);
+                // 同步更新菜单文案
+                if let Some(menu) = app.menu() {
+                    if let Some(MenuItemKind::MenuItem(item)) = menu.get("toggle") {
+                        let _ = item.set_text(if next { "隐藏宠物" } else { "显示宠物" });
+                    }
+                }
             }
             "settings" => {
                 let shared = app.state::<Shared>();
-                let _ = window::open_settings_window(&shared);
+                if let Err(e) = window::open_settings_window(&shared) {
+                    warn_user(&format!("打开设置失败：{e}"));
+                }
             }
             "quit" => {
                 QUITTING.store(true, Ordering::Relaxed);
+                let shared = app.state::<Shared>();
+                window::close_all(&shared);
                 app.exit(0);
+                // 兜底：若窗口关闭流程卡住，1s 后强制退出进程
+                std::thread::spawn(|| {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    std::process::exit(0);
+                });
             }
             _ => {}
         })

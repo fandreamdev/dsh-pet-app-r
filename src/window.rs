@@ -155,22 +155,27 @@ pub fn set_interactive_by_index(shared: &Shared, index: usize, interactive: bool
     let _ = index;
 }
 
-/// 打开设置窗（单例）。
+/// 打开设置窗（单例；已存在则显示并聚焦）。
 pub fn open_settings_window(shared: &Shared) -> Result<(), String> {
     let app = &shared.0.app;
     if let Some(win) = app.get_webview_window("settings") {
+        let _ = win.show();
+        let _ = win.center();
         let _ = win.set_focus();
         return Ok(());
     }
     let api_base = shared.api_base();
     let page = format!("settings.html?api={api_base}");
-    let _win = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(page.into()))
+    let win = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(page.into()))
         .title("dsh-pet-rust 设置")
         .inner_size(780.0, 640.0)
         .resizable(true)
+        .center()
         .additional_browser_args(browser_args())
         .build()
         .map_err(|e| format!("打开设置窗失败: {e}"))?;
+    let _ = win.show();
+    let _ = win.set_focus();
     Ok(())
 }
 
