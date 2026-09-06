@@ -6,6 +6,7 @@
 
 mod assets;
 mod config;
+mod passthrough;
 mod server;
 mod shared;
 mod window;

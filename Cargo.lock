@@ -736,6 +736,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

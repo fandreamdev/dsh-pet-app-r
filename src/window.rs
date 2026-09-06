@@ -5,11 +5,29 @@
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(windows)]
+use crate::passthrough;
 use crate::shared::{Shared, StaticBox};
 
 pub const WIN_MARGIN_RATIO: f64 = 0.22; // 窗口四周外扩 = 宠物宽 × 比例（与 frontend/constants.js 保持一致）
 pub const SCREEN_H: f64 = 360.0;
 pub const FEET_Y: f64 = 330.0;
+// 与前端 sprite HIT_BOX 一致：命中框 = 人物身体（640×360 画布坐标）
+const HIT_X0: f64 = 200.0;
+const HIT_Y0: f64 = 50.0;
+const HIT_X1: f64 = 440.0;
+const HIT_Y1: f64 = 335.0;
+
+/// 命中框（窗口客户区坐标）—— 几何与前端 sprite.js 完全一致。
+pub fn pet_hit_rect(size: f64, bottom_pad: f64) -> (f64, f64, f64, f64) {
+    let m = size * WIN_MARGIN_RATIO;
+    let height = size * 9.0 / 16.0;
+    let x = m + (HIT_X0 / 640.0) * size;
+    let y = m + bottom_pad + (HIT_Y0 / 360.0) * height;
+    let w = ((HIT_X1 - HIT_X0) / 640.0) * size;
+    let h = ((HIT_Y1 - HIT_Y0) / 360.0) * height;
+    (x, y, w, h)
+}
 
 /// WebView2 附加参数；DSH_PET_DEBUG=1 时开远程调试（本机验证/排障用）。
 fn browser_args() -> &'static str {
@@ -57,8 +75,16 @@ pub fn create_pet_window(shared: &Shared, _pet_id: &str, size: f64, pet_index: u
         })
         .build()
         .map_err(|e| format!("建窗失败 {label}: {e}"))?;
-    // 交互模型：窗口始终可交互（WebView2/Tauri 无 Electron 式事件转发，整窗穿透+悬停翻转
-    // 会变成“永远点不中”）；外扩余量已收窄到 0.22×size，遮挡面积最小化。
+    // 原生区域级穿透（Windows）：窗口只在宠物命中框内可点，其余真实点击穿透。
+    // 见 src/passthrough.rs；命中框随后由 set_bounds_by_index 持续更新。
+    #[cfg(windows)]
+    {
+        if let Ok(hwnd) = _win.hwnd() {
+            // tauri 的 HWND 是 windows crate 的 tuple 类型，转成裸指针供 passthrough 使用
+            let ptr: *mut core::ffi::c_void = unsafe { std::mem::transmute(hwnd) };
+            passthrough::attach(&label, ptr);
+        }
+    }
     Ok(())
 }
 
@@ -75,19 +101,29 @@ pub fn set_bounds_by_index(shared: &Shared, index: usize, x: f64, y: f64, w: f64
     let app = shared.0.app.clone();
     let app2 = app.clone();
     let label = format!("pet-{index}");
+    // 命中框（客户区坐标，与前端几何一致）——窗口移动时同步给原生穿透层
+    let rect = pet_hit_rect(size, bottom_pad);
     let _ = app.run_on_main_thread(move || {
         if let Some(win) = app2.get_webview_window(&label) {
             let _ = win.set_position(PhysicalPosition::new(x as i32, y as i32));
             let _ = win.set_size(PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32));
         }
+        #[cfg(windows)]
+        passthrough::set_hit_rect(&label, rect);
     });
 }
 
 /// 点击穿透翻转（按窗口序号）。
 ///
-/// 交互模型 v1：窗口始终可交互，本调用为 no-op（保留通道以兼容前端 sprite 的 setInteractive，
-/// 避免改动渲染端事件逻辑）。后续若做“区域级穿透”，这里应切换到 WM_NCHITTEST 命中模式。
-pub fn set_interactive_by_index(_shared: &Shared, _index: usize, _interactive: bool) {}
+/// WM_NCHITTEST 模型下：interactive=true（菜单/弹窗打开、拖拽中前端要求）→ 整窗 HTCLIENT；
+/// false → 回到“只在命中框内可点”的区域命中。
+pub fn set_interactive_by_index(shared: &Shared, index: usize, interactive: bool) {
+    let label = format!("pet-{index}");
+    #[cfg(windows)]
+    passthrough::set_full(&label, interactive);
+    let _ = shared;
+    let _ = index;
+}
 
 /// 打开设置窗（单例）。
 pub fn open_settings_window(shared: &Shared) -> Result<(), String> {
@@ -138,6 +174,8 @@ pub fn close_all(shared: &Shared) {
     let count = shared.0.id_of.lock().unwrap().len();
     for i in 0..count {
         let label = format!("pet-{i}");
+        #[cfg(windows)]
+        passthrough::detach(&label);
         if let Some(win) = app.get_webview_window(&label) {
             let _ = win.close();
         }

@@ -44,8 +44,10 @@ frontend/        index.html+constants.js+bridge.js+sprite.js+renderer.js(+shared
 
 - 打包（`tauri build` NSIS/portable）与发布文档 —— 下阶段
 - 跨窗碰撞真实触发未实测（默认 petCollision:false；碰撞 broker 逻辑已就位）
-- **交互模型 v1**：窗口始终可交互（余量已收窄 0.22×size，实测 665×484）；透明外扩区会挡住少量下层点击。
-  后续改进 = WM_NCHITTEST 区域级穿透（只在宠物命中框内可点、其余穿透），见 `src/window.rs set_interactive_by_index` 注释。
+- **区域级穿透已实现（WM_NCHITTEST）**：窗口只在宠物命中框内可交互，透明外扩区真实点击穿透；
+  命中框几何与前端 sprite 完全一致（本机核对 DOM x=246/w=173.25/h=205.73 与 Rust 公式相同）；
+  菜单/弹窗打开时自动切整窗可交互（对应 sprite setInteractive）。实现见 `src/passthrough.rs`。
+- 跨窗碰撞真实触发未实测（默认 petCollision:false；碰撞 broker 逻辑已就位）
 - CDP 目标枚举在窗口重建后会失效（页面本身正常，见 page_load 日志）；遥测 `/debug/status` 是可靠观测通道
 - 多显示器仍按主屏工作区；位置记忆/开机自启未做
 
@@ -59,5 +61,6 @@ frontend/        index.html+constants.js+bridge.js+sprite.js+renderer.js(+shared
 > 需全局 OPTIONS 中间件（`server.rs cors_preflight`）；② WebView2 远程调试必须经
 > `.additional_browser_args(...)`（环境变量不生效）；③ 重建后 CDP 枚举不可靠，以页面加载日志+遥测为准；
 > ④ **交互修复**：WebView2/Tauri 没有 Electron 的鼠标事件转发（forward:true），整窗穿透+悬停翻转会变成
-> “宠物永远点不中/拖不动/右键无反应”——已改为窗口始终可交互并收窄外扩余量（Rust 与 frontend 两端
-> `WINDOW_MARGIN_RATIO=0.22` 同步）。
+> “宠物永远点不中/拖不动/右键无反应”。第一阶段：窗口始终可交互并收窄余量到 0.22（两端常量同步）；
+> 第二阶段（当前）：Windows 下 `WM_NCHITTEST` 子类化做**区域级穿透**——仅宠物命中框可点（HTCLIENT），
+> 其余真实穿透（HTTRANSPARENT），菜单/弹窗时整窗可交互（passthrough.rs + window.rs 联动）。
