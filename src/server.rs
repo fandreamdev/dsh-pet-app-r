@@ -311,8 +311,11 @@ async fn get_debug_status(State(shared): State<Shared>) -> Response {
 
 async fn get_debug_windows(State(shared): State<Shared>) -> Response {
     use tauri::Manager as _;
-    let labels: Vec<String> = shared.0.app.webview_windows().keys().cloned().collect();
-    jobj(json!({ "windows": labels }))
+    let mut out = Vec::new();
+    for (label, win) in shared.0.app.webview_windows() {
+        out.push(json!({ "label": label, "visible": win.is_visible().unwrap_or(false) }));
+    }
+    jobj(json!({ "windows": out }))
 }
 
 async fn post_debug_close_settings(State(shared): State<Shared>) -> Response {
