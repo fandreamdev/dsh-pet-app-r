@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' http: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http:"
+    />
+    <title>dsh-pet-rust 设置</title>
+    <link rel="stylesheet" href="./settings.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>🐾 dsh-pet-app 设置</h1>
+
+      <section>
+        <h2>宠物列表</h2>
+        <div id="pet-chips" class="chips"></div>
+        <div class="row">
+          <button id="btn-add">+ 添加宠物</button>
+          <button id="btn-del" class="danger">删除当前</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>当前宠物</h2>
+        <form id="pet-form" class="grid">
+          <label>名字<input id="f-name" type="text" maxlength="50" /></label>
+          <label>宽度 px（高度 = 宽 × 9/16）<input id="f-size" type="number" min="120" step="10" /></label>
+          <label>角落
+            <select id="f-corner">
+              <option value="top-left">左上</option>
+              <option value="top-right">右上</option>
+              <option value="bottom-left">左下</option>
+              <option value="bottom-right">右下</option>
+            </select>
+          </label>
+          <label>水平边距<input id="f-marginX" type="number" step="1" /></label>
+          <label>垂直边距<input id="f-marginY" type="number" step="1" /></label>
+        </form>
+      </section>
+
+      <section>
+        <h2>物理（抛掷手感，全局）</h2>
+        <form id="physics-form" class="grid">
+          <label>重力 px/s²<input id="p-gravity" type="number" min="0" step="50" /></label>
+          <label>反弹恢复系数<input id="p-restitution" type="number" min="0" max="1" step="0.05" /></label>
+          <label>落地摩擦 /s<input id="p-groundFriction" type="number" min="0" step="0.1" /></label>
+          <label class="check"><input id="p-ceilingBounce" type="checkbox" /> 顶部反弹</label>
+          <label>甩抛力度×<input id="p-throwPower" type="number" min="0.1" step="0.1" /></label>
+          <label class="check"><input id="p-petCollision" type="checkbox" /> 宠物互撞</label>
+        </form>
+      </section>
+
+      <div class="row actions">
+        <button id="btn-save" class="primary">保存（即时生效）</button>
+        <button id="btn-reset">恢复默认配置</button>
+        <span id="msg" class="msg"></span>
+      </div>
+
+      <section class="meta">
+        <h3>数据与素材路径</h3>
+        <pre id="meta"></pre>
+      </section>
+    </main>
+    <script src="./settings.js"></script>
+  </body>
+</html>

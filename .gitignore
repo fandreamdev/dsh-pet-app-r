@@ -1,0 +1,7 @@
+/target/
+**/*.rs.bk
+*.log
+shot-*.png
+probe-shot.png
+
+/gen/

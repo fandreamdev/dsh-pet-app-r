@@ -1,0 +1,27 @@
+[package]
+name = "dsh-pet-rust"
+version = "0.1.0"
+edition = "2021"
+description = "dsh-pet-app 的 Rust(Tauri 2) 重构版宿主"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "signal"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+axum = "0.8"
+futures-util = "0.3"
+tower = "0.5"
+http = "1"
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

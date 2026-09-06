@@ -1,0 +1,129 @@
+:root {
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: 'Microsoft YaHei UI', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  color: #2b2b2b;
+  background: #f5f5f7;
+}
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+}
+h1 {
+  font-size: 22px;
+}
+h2 {
+  font-size: 15px;
+  margin: 22px 0 8px;
+  border-bottom: 1px solid #e2e2e6;
+  padding-bottom: 6px;
+}
+h3 {
+  font-size: 13px;
+  margin: 14px 0 4px;
+}
+section {
+  background: #fff;
+  border: 1px solid #e2e2e6;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 14px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 30px;
+}
+.chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid #cfd2d8;
+  background: #fafafa;
+  cursor: pointer;
+  user-select: none;
+}
+.chip.active {
+  background: #e8f0fe;
+  border-color: #5b8def;
+}
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.actions {
+  margin-top: 18px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 14px;
+  margin-top: 6px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #666;
+}
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #2b2b2b;
+}
+input,
+select {
+  padding: 6px 8px;
+  border: 1px solid #cfd2d8;
+  border-radius: 6px;
+  font-size: 13px;
+}
+button {
+  padding: 6px 14px;
+  border: 1px solid #cfd2d8;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+button:hover {
+  border-color: #9aa0ab;
+}
+button.primary {
+  background: #5b8def;
+  border-color: #5b8def;
+  color: #fff;
+}
+button.danger {
+  color: #d94f3d;
+  border-color: #e4a9a1;
+}
+.msg {
+  font-size: 13px;
+  color: #2e9e4f;
+}
+.msg.err {
+  color: #d94f3d;
+}
+.meta pre {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

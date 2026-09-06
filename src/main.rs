@@ -1,0 +1,90 @@
+//! dsh-pet-rust —— Tauri 2 宿主：Rust 实现 dsh-pet-app v0.1.0 的核心宿主职责。
+//!
+//! 启动序列：发现素材根 → userData → 启动本地 API 服务(127.0.0.1 随机端口) →
+//! 读取 merged 配置 → 每只桌面宠物一个透明置顶窗 → 托盘。
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod assets;
+mod config;
+mod server;
+mod shared;
+mod window;
+
+use shared::Shared;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, RunEvent};
+
+static VISIBLE: AtomicBool = AtomicBool::new(true);
+static QUITTING: AtomicBool = AtomicBool::new(false);
+
+fn main() {
+    tauri::Builder::default()
+        .setup(|app| {
+            // 素材根 + userData
+            let asset_root = assets::discover_asset_root().unwrap_or_else(|| {
+                eprintln!("[dsh-pet-rust] 未找到素材根（可用 DSH_PET_ASSET_ROOT 指定）");
+                std::env::current_dir().unwrap_or_default().join("assets")
+            });
+            let user_dir = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join("user-data"));
+            std::fs::create_dir_all(&user_dir).ok();
+
+            // 共享状态 + 本地服务（先拿端口，窗口 query 需要）
+            let shared = Shared::new(app.handle().clone(), asset_root.clone(), user_dir.clone());
+            let base = tauri::async_runtime::block_on(server::start(shared.clone()))?;
+            eprintln!("[dsh-pet-rust] asset_root={} api={}", asset_root.display(), base);
+
+            // 托盘
+            let toggle_item = MenuItem::with_id(app, "toggle", "隐藏宠物", true, None::<&str>)?;
+            let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&toggle_item, &settings_item, &PredefinedMenuItem::separator(app)?, &quit_item])?;
+            let mut tray_builder = TrayIconBuilder::with_id("tray")
+                .tooltip("dsh-pet-rust")
+                .menu(&menu)
+                .show_menu_on_left_click(false);
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(icon);
+            }
+            let _tray = tray_builder.build(app)?;
+
+            // 管理状态 + 初始宠物窗
+            app.manage(shared.clone());
+            let merged = config::read_merged(&asset_root, &user_dir)?;
+            let n = window::rebuild_pet_windows(&shared, &merged)?;
+            eprintln!("[dsh-pet-rust] 桌面宠物 {n} 只");
+            Ok(())
+        })
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "toggle" => {
+                let next = !VISIBLE.load(Ordering::Relaxed);
+                VISIBLE.store(next, Ordering::Relaxed);
+                let shared = app.state::<Shared>();
+                window::set_visible_all(&shared, next);
+            }
+            "settings" => {
+                let shared = app.state::<Shared>();
+                let _ = window::open_settings_window(&shared);
+            }
+            "quit" => {
+                QUITTING.store(true, Ordering::Relaxed);
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building dsh-pet-rust")
+        .run(|app, event| {
+            // 宠物窗因配置重建会被 close：仅当“真的退出”时才允许进程退出（托盘驻留）
+            if let RunEvent::ExitRequested { api, .. } = event {
+                if !QUITTING.load(Ordering::Relaxed) {
+                    api.prevent_exit();
+                }
+            }
+            let _ = app;
+        });
+}
