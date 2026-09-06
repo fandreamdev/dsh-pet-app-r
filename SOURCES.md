@@ -8,7 +8,7 @@
 | `assets/fonts/`、`assets/pic/` | 同上 | 气泡字体、光标/图标 |
 | `assets/config.jsonc` | 同上 | 默认配置（配置模型单一来源） |
 | `frontend/shared-core.js` | `src/shared/index.ts` 的 esbuild IIFE 构建产物（`window.PetShared`） | 纯逻辑（物理/菜单/拍平…），已入库 |
-| `frontend/sprite.js`、`settings.css` | dsh-pet desktop helper（`runtime/electron-helper/`）的改编版 | 本仓库自行维护（sprite 为上游 PetSprite 小改） |
+| `ts/sprite.ts`（产物 `frontend/sprite.js`）、`frontend/settings.css` | dsh-pet desktop helper（`runtime/electron-helper/`）的改编版 | 本仓库自维护的 **TypeScript 源码**（编译到 frontend/；sprite 为上游 PetSprite 小改） |
 | `icons/icon.ico` | 由 dsh-pet-app `assets/pic/notify-done.png` 封装生成 | tauri-build Windows 资源图标 |
 
 ## 刷新（可选，开发期）

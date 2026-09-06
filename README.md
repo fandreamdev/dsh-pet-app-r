@@ -19,12 +19,28 @@ cargo run        # 依赖已配 crates 镜像；首次编译较慢
 src/main.rs      装配：素材根/userData → 起本地服务 → 托盘 → 宠物窗
 src/config.rs    默认 config.jsonc + 用户覆盖 → merged（与上游形状一致）
 src/assets.rs    素材根发现 + 安全解析
+src/passthrough.rs WM_NCHITTEST 区域级穿透（Windows）
 src/server.rs    axum：/config /meta /thumb|font|pic /pet/* /events(SSE)
-src/window.rs    每宠一透明置顶窗（pet-<i>），位置跟随/穿透
+src/window.rs    每宠一透明置顶窗（pet-<i>），位置跟随/穿透/命中框同步
 src/shared.rs    共享状态（宠物映射/静止框/飞行/事件广播）
-frontend/        index.html+constants.js+bridge.js+sprite.js+renderer.js(+shared-core.js 构建产物)
-                 settings.html/css/js（走 API）
+ts/              渲染端 **TypeScript 源码**（constants/bridge/sprite/renderer/settings）
+frontend/        TS 编译产物（*.js，供 index.html/settings.html 加载）+ shared-core.js 构建产物
 ```
+
+## 前端 TypeScript
+
+- 源码在 `ts/`（5 个自维护文件 + globals.d.ts）；浏览器产物是编译后的 classic script。
+- 构建/类型检查：
+
+```sh
+npm install        # 仅需 typescript
+npm run build      # tsc 编译 → frontend/*.js（index.html/settings.html 加载这些产物）
+npm run typecheck  # 只查类型不产出
+```
+
+- 拆分说明：宠物窗脚本（constants/bridge/sprite/renderer）与设置页脚本（settings）是两套
+  classic-script 全局程序，各自独立编译（tsconfig.pet.json / tsconfig.settings.json），避免跨页重名。
+- `frontend/shared-core.js` 是上游纯逻辑构建产物（来源见 SOURCES.md），保持原样加载。
 
 ## 验证状态（本机实测证据）
 

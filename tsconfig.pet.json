@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "ts",
+    "outDir": "frontend"
+  },
+  "include": ["ts/constants.ts", "ts/bridge.ts", "ts/sprite.ts", "ts/renderer.ts", "ts/globals.d.ts"]
+}

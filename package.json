@@ -1,0 +1,14 @@
+{
+  "name": "dsh-pet-rust-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "dsh-pet-rust 渲染端 TypeScript 工具链（产物为 classic script，供 index.html/settings.html 加载）",
+  "scripts": {
+    "build": "tsc -p tsconfig.pet.json && tsc -p tsconfig.settings.json",
+    "typecheck": "tsc -p tsconfig.pet.json --noEmit && tsc -p tsconfig.settings.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "license": "MIT"
+}
