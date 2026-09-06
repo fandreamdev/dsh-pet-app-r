@@ -6,3 +6,5 @@ probe-shot.png
 node_modules/
 
 /gen/
+build-warnings.txt
+
