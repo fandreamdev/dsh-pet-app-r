@@ -27,6 +27,19 @@ ts/              渲染端 **TypeScript 源码**（constants/bridge/sprite/rende
 frontend/        TS 编译产物（*.js，供 index.html/settings.html 加载）+ shared-core.js 构建产物
 ```
 
+## Release 运行（双击 exe）
+
+release 是 GUI 程序（无控制台），且**素材不内嵌进 exe**——需要 assets/ 与 exe 同级或在其上级能找到：
+
+```sh
+cargo build --release
+node scripts/stage-dist.mjs     # 生成 dist-win/（exe + assets 同级）
+# 双击 dist-win/dsh-pet-rust.exe 即可运行
+```
+
+> 找不到素材时程序会弹系统提示框并只留托盘（不再静默消失）。也可把 exe 直接放到仓库根（assets 同级）运行，
+> 或用环境变量 `DSH_PET_ASSET_ROOT` 指向素材目录。
+
 ## 前端 TypeScript
 
 - 源码在 `ts/`（5 个自维护文件 + globals.d.ts）；浏览器产物是编译后的 classic script。

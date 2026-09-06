@@ -3,8 +3,9 @@
 //! 本仓库完全自包含：assets/（webm/fonts/pic/config.jsonc）随仓库维护，运行时不再依赖
 //! 任何外部目录。资源根候选（按序取第一个存在且结构完整的）：
 //!   1. 环境变量 DSH_PET_ASSET_ROOT（显式指定）
-//!   2. <cwd>/assets                        （开发：cargo run / 直接运行）
+//!   2. <cwd>/assets                        （开发：cargo run / 从仓库根启动）
 //!   3. <exe 目录>/assets                   （打包后随程序分发）
+//!   4. <exe 目录> 逐级向父目录找 assets     （源码树里从 target/release 双击 exe 也能定位仓库根）
 use std::path::{Path, PathBuf};
 
 pub const ALLOWED_EXT: [&str; 3] = ["webm", "ttf", "png"];
@@ -21,14 +22,23 @@ pub fn discover_asset_root() -> Option<PathBuf> {
         }
     }
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    if looks_like_root(&cwd.join("assets")) {
-        return Some(cwd.join("assets"));
+    let cwd_assets = cwd.join("assets");
+    if looks_like_root(&cwd_assets) {
+        return Some(cwd_assets);
     }
-    // 打包后：<exe>/assets
+    // 打包/源码树：从 exe 所在目录向上逐级找 assets（target/release → 仓库根/资源目录）
     if let Ok(exe) = std::env::current_exe() {
-        if let Some(p) = exe.parent().map(|d| d.join("assets")) {
+        let mut probe = match exe.parent() {
+            Some(d) => d.to_path_buf(),
+            None => return None,
+        };
+        for _ in 0..4 {
+            let p = probe.join("assets");
             if looks_like_root(&p) {
                 return Some(p);
+            }
+            if !probe.pop() {
+                break;
             }
         }
     }

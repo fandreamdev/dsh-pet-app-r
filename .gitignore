@@ -8,3 +8,5 @@ node_modules/
 /gen/
 build-warnings.txt
 
+dist-win/
+

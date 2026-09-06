@@ -20,14 +20,32 @@ use tauri::{Manager, RunEvent};
 static VISIBLE: AtomicBool = AtomicBool::new(true);
 static QUITTING: AtomicBool = AtomicBool::new(false);
 
+/// 给用户的可见提示：release 是 GUI 子系统（无控制台），找不到素材时用系统消息框。
+fn warn_user(message: &str) {
+    eprintln!("[dsh-pet-rust] {message}");
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW;
+        let wide: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
+        let cap: Vec<u16> = "dsh-pet-rust"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let _ = MessageBoxW(std::ptr::null_mut(), wide.as_ptr(), cap.as_ptr(), 0);
+        // MB_OK
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            // 素材根 + userData
-            let asset_root = assets::discover_asset_root().unwrap_or_else(|| {
-                eprintln!("[dsh-pet-rust] 未找到素材根（可用 DSH_PET_ASSET_ROOT 指定）");
-                std::env::current_dir().unwrap_or_default().join("assets")
-            });
+            // 素材根：找不到时给用户可见提示（release 无控制台），并继续运行托盘等待修复
+            let Some(asset_root) = assets::discover_asset_root() else {
+                warn_user(
+                    "dsh-pet-rust 未找到素材目录 assets/\n\n请把本程序放到仓库根目录运行，\n或用环境变量 DSH_PET_ASSET_ROOT 指向包含 config.jsonc 与 webm/ 的目录。",
+                );
+                return Ok(());
+            };
             let user_dir = app.path().app_data_dir().unwrap_or_else(|_| {
                 std::env::current_dir()
                     .unwrap_or_default()
