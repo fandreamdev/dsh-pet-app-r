@@ -13,7 +13,7 @@ mod window;
 
 use shared::Shared;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, RunEvent};
 
@@ -90,6 +90,8 @@ fn main() {
 
             // 管理状态 + 初始宠物窗
             app.manage(shared.clone());
+            // 先预建设置窗（隐藏），再建宠物窗——规避 WebView2 第二个窗口无法初始化的问题
+            let _ = window::prebuild_settings_window(&shared);
             let merged = config::read_merged(&asset_root, &user_dir)?;
             let n = window::rebuild_pet_windows(&shared, &merged)?;
             eprintln!("[dsh-pet-rust] 桌面宠物 {n} 只");
@@ -101,10 +103,26 @@ fn main() {
                 VISIBLE.store(next, Ordering::Relaxed);
                 let shared = app.state::<Shared>();
                 window::set_visible_all(&shared, next);
-                // 同步更新菜单文案
-                if let Some(menu) = app.menu() {
-                    if let Some(MenuItemKind::MenuItem(item)) = menu.get("toggle") {
-                        let _ = item.set_text(if next { "隐藏宠物" } else { "显示宠物" });
+                // 重建托盘菜单以切换文案（Windows 下 app.menu() 拿不到托盘菜单）
+                if let Some(tray) = app.tray_by_id("tray") {
+                    let new_toggle = MenuItem::with_id(
+                        app,
+                        "toggle",
+                        if next { "隐藏宠物" } else { "显示宠物" },
+                        true,
+                        None::<&str>,
+                    );
+                    let new_settings = MenuItem::with_id(app, "settings", "设置", true, None::<&str>);
+                    let new_quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>);
+                    let sep = PredefinedMenuItem::separator(app);
+                    let rebuilt = match (new_toggle, new_settings, sep, new_quit) {
+                        (Ok(t), Ok(s), Ok(sep), Ok(q)) => {
+                            Menu::with_items(app, &[&t, &s, &sep, &q]).ok()
+                        }
+                        _ => None,
+                    };
+                    if let Some(menu) = rebuilt {
+                        let _ = tray.set_menu(Some(menu));
                     }
                 }
             }

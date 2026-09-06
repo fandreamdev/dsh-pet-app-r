@@ -160,22 +160,38 @@ pub fn open_settings_window(shared: &Shared) -> Result<(), String> {
     let app = &shared.0.app;
     if let Some(win) = app.get_webview_window("settings") {
         let _ = win.show();
-        let _ = win.center();
         let _ = win.set_focus();
         return Ok(());
     }
+    build_settings_window(shared, true)
+}
+
+/// 预建（隐藏）设置窗：在首个宠物窗之前创建，规避 WebView2 多窗口初始化问题。
+pub fn prebuild_settings_window(shared: &Shared) -> Result<(), String> {
+    build_settings_window(shared, false)
+}
+
+fn build_settings_window(shared: &Shared, visible: bool) -> Result<(), String> {
+    let app = &shared.0.app;
     let api_base = shared.api_base();
     let page = format!("settings.html?api={api_base}");
-    let win = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(page.into()))
+    let label = "settings".to_string();
+    let _win = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(page.into()))
         .title("dsh-pet-rust 设置")
         .inner_size(780.0, 640.0)
         .resizable(true)
-        .center()
+        .visible(visible)
         .additional_browser_args(browser_args())
+        .on_page_load(move |_win, payload| {
+            eprintln!(
+                "[settings] page_load {:?} url={}",
+                payload.event(),
+                payload.url()
+            );
+        })
         .build()
         .map_err(|e| format!("打开设置窗失败: {e}"))?;
-    let _ = win.show();
-    let _ = win.set_focus();
+    eprintln!("[settings] built label={label} visible={visible}");
     Ok(())
 }
 

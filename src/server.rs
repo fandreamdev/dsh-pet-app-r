@@ -280,10 +280,13 @@ async fn post_collide(State(shared): State<Shared>, Json(b): Json<CollideBody>) 
 }
 
 async fn post_open_settings(State(shared): State<Shared>) -> Response {
-    match window::open_settings_window(&shared) {
-        Ok(()) => jobj(json!({ "ok": true })),
-        Err(e) => jerr(StatusCode::INTERNAL_SERVER_ERROR, &e),
-    }
+    // WebView 窗口必须在主线程创建：派发到主线程执行（托盘路径已在主线程）
+    let app = shared.0.app.clone();
+    let shared_for_main = shared.clone();
+    let _ = app.run_on_main_thread(move || {
+        let _ = window::open_settings_window(&shared_for_main);
+    });
+    jobj(json!({ "ok": true }))
 }
 
 #[derive(Deserialize)]
@@ -304,6 +307,12 @@ async fn get_debug_status(State(shared): State<Shared>) -> Response {
         out.insert(k.to_string(), v);
     }
     jobj(Value::Object(out))
+}
+
+async fn get_debug_windows(State(shared): State<Shared>) -> Response {
+    use tauri::Manager as _;
+    let labels: Vec<String> = shared.0.app.webview_windows().keys().cloned().collect();
+    jobj(json!({ "windows": labels }))
 }
 
 // ---------- SSE ----------
@@ -374,6 +383,7 @@ fn router() -> Router<Shared> {
         .route("/pet/open-settings", post(post_open_settings))
         .route("/pet/status", post(post_status))
         .route("/debug/status", get(get_debug_status))
+        .route("/debug/windows", get(get_debug_windows))
         .route("/events", get(sse_events))
         .fallback(handle_fallback)
         .layer(middleware::from_fn(cors_preflight))
