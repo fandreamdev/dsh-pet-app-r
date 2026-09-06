@@ -29,12 +29,19 @@ frontend/        TS 编译产物（*.js，供 index.html/settings.html 加载）
 
 ## Release 运行（双击 exe）
 
-release 是 GUI 程序（无控制台），且**素材不内嵌进 exe**——需要 assets/ 与 exe 同级或在其上级能找到：
+release 是 GUI 程序（无控制台），且**素材不内嵌进 exe**——需要 assets/ 与 exe 同级或在其上级能找到。
+
+**一键运行（推荐，不需要手动找素材）**：双击仓库根的 `run-release.cmd`
+
+- 若 `dist-win/` 不存在会自动 `cargo build --release` + 打包 `dist-win/`（exe+assets 同级）再启动；
+- 代码有改动想重编时用：`run-release.cmd rebuild`。
+
+手动方式：
 
 ```sh
 cargo build --release
 node scripts/stage-dist.mjs     # 生成 dist-win/（exe + assets 同级）
-# 双击 dist-win/dsh-pet-rust.exe 即可运行
+# 双击 dist-win\dsh-pet-rust.exe 即可运行
 ```
 
 > 找不到素材时程序会弹系统提示框并只留托盘（不再静默消失）。也可把 exe 直接放到仓库根（assets 同级）运行，
