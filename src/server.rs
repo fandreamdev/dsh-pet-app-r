@@ -334,6 +334,14 @@ async fn get_debug_windows(State(shared): State<Shared>) -> Response {
     jobj(json!({ "windows": out }))
 }
 
+async fn post_debug_destroy_settings(State(shared): State<Shared>) -> Response {
+    use tauri::Manager as _;
+    if let Some(win) = shared.0.app.get_webview_window("settings") {
+        let _ = win.destroy(); // 模拟 X 关闭（销毁），不走 CloseRequested
+    }
+    jobj(json!({ "ok": true }))
+}
+
 // ---------- SSE ----------
 
 #[derive(Deserialize)]
@@ -404,6 +412,7 @@ fn router() -> Router<Shared> {
         .route("/pet/status", post(post_status))
         .route("/debug/status", get(get_debug_status))
         .route("/debug/windows", get(get_debug_windows))
+        .route("/debug/destroy-settings", post(post_debug_destroy_settings))
         .route("/events", get(sse_events))
         .fallback(handle_fallback)
         .layer(middleware::from_fn(cors_preflight))

@@ -1,5 +1,5 @@
 use crate::shared::Shared;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub fn prepare(shared: &Shared) -> Result<(), String> {
     if shared.0.app.get_webview_window("settings").is_some() {
@@ -31,22 +31,14 @@ fn build(shared: &Shared, visible: bool) -> Result<(), String> {
         .transparent(false)
         // 与宠物窗同为置顶：保证设置窗打开时位于宠物窗之上，X 不被透明宠物窗挡住
         .always_on_top(true)
-        .skip_taskbar(false)
+        .skip_taskbar(true)
         .resizable(true)
         .visible(visible)
         .additional_browser_args(crate::pet_windows::browser_args())
         .on_page_load(|_, p| eprintln!("[settings] {:?} {}", p.event(), p.url()))
         .build()
         .map_err(|e| format!("创建设置窗口失败: {e}"))?;
-    // 点 X 只隐藏、不销毁：避免销毁后再次打开又踩到 WebView2 二次初始化问题
-    let w2 = win.clone();
-    win.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-            let _ = w2.hide();
-        }
-    });
-    // 仅“真正打开”时才显示/聚焦；prepare 只预建隐藏窗口，避免抢在宠物窗之前弹出来
+    // X 走默认“销毁”，下次打开会重建（两窗 browser_args 已一致，重建没问题）。
     if visible {
         win.show().map_err(|e| format!("显示设置窗口失败: {e}"))?;
         win.set_focus()
