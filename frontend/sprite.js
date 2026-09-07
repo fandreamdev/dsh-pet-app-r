@@ -735,6 +735,7 @@ class PetSprite {
         const wasDragging = d.dragging;
         d.active = false;
         d.dragging = false;
+        this.setInteractive(false); // 拖拽结束：恢复“仅命中框可交互”
         this.hit.classList.remove('dragging');
         this.stopDragFollow(); // 弹簧跟随立即停（位置定格在实时 this.pos）
         this.stage.style.transform = 'translateY(' + this.bottomPad + 'px)';
@@ -812,14 +813,9 @@ class PetSprite {
             this.setInteractive(true);
             return;
         }
-        const r = this.hitRect;
-        // forwarded 事件坐标以窗口为原点（与页坐标一致）；转换到 sprite 坐标需扣减窗口余量；
-        // 异常时退回屏幕坐标 - 窗口位置推导（hitRect/pos 均为 sprite 坐标）
-        const wx = Number.isFinite(e.clientX) ? e.clientX : e.screenX - (this.pos.x - this.margin.l);
-        const wy = Number.isFinite(e.clientY) ? e.clientY : e.screenY - (this.pos.y - this.margin.t);
-        const px = wx - this.margin.l;
-        const py = wy - this.margin.t;
-        this.setInteractive(px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h);
+        // 注意：不要做“悬停命中区 → 整窗可交互”的切换。原生 WM_NCHITTEST 已按命中框精确放行，
+        // hover 临时把整窗切成可交互会导致透明区持续吞掉鼠标事件（例如挡住设置窗的 X）。
+        void e;
     }
     onClick() {
         const d = this.dragState;
@@ -870,6 +866,7 @@ class PetSprite {
             onClose: () => {
                 this.menuOpen = false;
                 window.__dshPetDebug.menuOpen = false;
+                this.setInteractive(false);
             },
         });
         this.menuClose = m.close;
@@ -916,6 +913,7 @@ class PetSprite {
         }
         this.menuOpen = false;
         window.__dshPetDebug.menuOpen = false;
+        this.setInteractive(false); // 关闭菜单后恢复“仅命中框可交互”，避免透明区吞鼠标
     }
     // 「回到初始位置」菜单：停掉漫游/移动，清掉拖拽/漫游留下的会话位置，回到配置角落
     goHome() {
