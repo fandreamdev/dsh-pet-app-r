@@ -6,8 +6,9 @@
 
 use crate::assets;
 use crate::config;
+use crate::pet_windows;
+use crate::settings_window;
 use crate::shared::{ServerEvent, Shared};
-use crate::window;
 use axum::body::Body;
 use axum::extract::{Path as AxPath, Query, State};
 use axum::http::{header, HeaderMap, Method, Request, StatusCode};
@@ -93,7 +94,8 @@ fn schedule_rebuild(shared: Shared) {
     let _ = app.run_on_main_thread(move || {
         let merged = config::read_merged(&shared.0.asset_root, &shared.0.user_dir)
             .unwrap_or_else(|_| Value::Object(Default::default()));
-        let _ = window::rebuild_pet_windows(&shared, &merged);
+        let _ = pet_windows::rebuild(&shared, &merged);
+        pet_windows::show_all(&shared);
     });
 }
 
@@ -210,6 +212,11 @@ struct InteractiveBody {
 }
 
 #[derive(Deserialize)]
+struct ClosePetBody {
+    index: usize,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FlightBody {
     pet: String,
@@ -230,7 +237,7 @@ struct CollideBody {
 }
 
 async fn post_bounds(State(shared): State<Shared>, Json(b): Json<BoundsBody>) -> Response {
-    window::set_bounds_by_index(
+    pet_windows::set_bounds(
         &shared,
         b.index,
         b.x,
@@ -249,7 +256,14 @@ async fn post_interactive(
     State(shared): State<Shared>,
     Json(b): Json<InteractiveBody>,
 ) -> Response {
-    window::set_interactive_by_index(&shared, b.index, b.interactive);
+    pet_windows::set_interactive(&shared, b.index, b.interactive);
+    jobj(json!({ "ok": true }))
+}
+
+async fn post_close_pet(State(shared): State<Shared>, Json(b): Json<ClosePetBody>) -> Response {
+    let app = shared.0.app.clone();
+    let shared2 = shared.clone();
+    let _ = app.run_on_main_thread(move || pet_windows::close_one(&shared2, b.index));
     jobj(json!({ "ok": true }))
 }
 
@@ -284,7 +298,9 @@ async fn post_open_settings(State(shared): State<Shared>) -> Response {
     let app = shared.0.app.clone();
     let shared_for_main = shared.clone();
     let _ = app.run_on_main_thread(move || {
-        let _ = window::open_settings_window(&shared_for_main);
+        if let Err(e) = settings_window::open(&shared_for_main) {
+            eprintln!("[settings] open failed: {e}");
+        }
     });
     jobj(json!({ "ok": true }))
 }
@@ -316,14 +332,6 @@ async fn get_debug_windows(State(shared): State<Shared>) -> Response {
         out.push(json!({ "label": label, "visible": win.is_visible().unwrap_or(false) }));
     }
     jobj(json!({ "windows": out }))
-}
-
-async fn post_debug_close_settings(State(shared): State<Shared>) -> Response {
-    use tauri::Manager as _;
-    if let Some(win) = shared.0.app.get_webview_window("settings") {
-        let _ = win.close(); // 触发 CloseRequested → 我们拦截为 hide
-    }
-    jobj(json!({ "ok": true }))
 }
 
 // ---------- SSE ----------
@@ -389,13 +397,13 @@ fn router() -> Router<Shared> {
         .route("/pic/{file}", get(get_pic))
         .route("/pet/bounds", post(post_bounds))
         .route("/pet/interactive", post(post_interactive))
+        .route("/pet/close", post(post_close_pet))
         .route("/pet/flight", post(post_flight))
         .route("/pet/collide", post(post_collide))
         .route("/pet/open-settings", post(post_open_settings))
         .route("/pet/status", post(post_status))
         .route("/debug/status", get(get_debug_status))
         .route("/debug/windows", get(get_debug_windows))
-        .route("/debug/close-settings", post(post_debug_close_settings))
         .route("/events", get(sse_events))
         .fallback(handle_fallback)
         .layer(middleware::from_fn(cors_preflight))

@@ -7,9 +7,10 @@
 mod assets;
 mod config;
 mod passthrough;
+mod pet_windows;
 mod server;
+mod settings_window;
 mod shared;
-mod window;
 
 use shared::Shared;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -90,10 +91,10 @@ fn main() {
 
             // 管理状态 + 初始宠物窗
             app.manage(shared.clone());
-            // 先预建设置窗（隐藏），再建宠物窗——规避 WebView2 第二个窗口无法初始化的问题
-            let _ = window::prebuild_settings_window(&shared);
+            let _ = settings_window::prepare(&shared);
             let merged = config::read_merged(&asset_root, &user_dir)?;
-            let n = window::rebuild_pet_windows(&shared, &merged)?;
+            let n = pet_windows::rebuild(&shared, &merged)?;
+            pet_windows::show_all(&shared);
             eprintln!("[dsh-pet-rust] 桌面宠物 {n} 只");
             Ok(())
         })
@@ -102,7 +103,7 @@ fn main() {
                 let next = !VISIBLE.load(Ordering::Relaxed);
                 VISIBLE.store(next, Ordering::Relaxed);
                 let shared = app.state::<Shared>();
-                window::set_visible_all(&shared, next);
+                pet_windows::set_visible(&shared, next);
                 // 重建托盘菜单以切换文案（Windows 下 app.menu() 拿不到托盘菜单）
                 if let Some(tray) = app.tray_by_id("tray") {
                     let new_toggle = MenuItem::with_id(
@@ -128,14 +129,14 @@ fn main() {
             }
             "settings" => {
                 let shared = app.state::<Shared>();
-                if let Err(e) = window::open_settings_window(&shared) {
+                if let Err(e) = settings_window::open(&shared) {
                     warn_user(&format!("打开设置失败：{e}"));
                 }
             }
             "quit" => {
                 QUITTING.store(true, Ordering::Relaxed);
                 let shared = app.state::<Shared>();
-                window::close_all(&shared);
+                pet_windows::close_all(&shared);
                 app.exit(0);
                 // 兜底：若窗口关闭流程卡住，1s 后强制退出进程
                 std::thread::spawn(|| {

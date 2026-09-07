@@ -853,6 +853,7 @@ class PetSprite {
         const tools = [
             { label: '回到初始位置', action: 'home' },
             { label: '打开设置', action: 'settings' },
+            { label: '关闭此宠物', action: 'close-pet' },
         ];
         const tree = tools.concat(S.buildMenuTree(this.animations));
         if (!tree.length)
@@ -886,6 +887,11 @@ class PetSprite {
         }
         if (leaf.action === 'home') {
             this.goHome(); // 停漫游/移动，清会话位置，回配置角落
+            return;
+        }
+        if (leaf.action === 'close-pet') {
+            if (window.petBridge && window.petBridge.closePet)
+                window.petBridge.closePet();
             return;
         }
         if (!leaf.anim)

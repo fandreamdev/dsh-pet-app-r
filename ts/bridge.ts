@@ -33,6 +33,9 @@
     openSettings() {
       post('/pet/open-settings', {});
     },
+    closePet() {
+      post('/pet/close', { index: CONFIG.petIndex });
+    },
     // 跨窗碰撞
     reportFlight(state) {
       post('/pet/flight', {

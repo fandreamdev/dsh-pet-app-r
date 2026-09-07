@@ -37,9 +37,10 @@ function renderChips() {
 function fillForm(p) {
     $('f-name').value = p.name || p.id;
     $('f-size').value = p.size;
-    $('f-corner').value = p.position.corner;
-    $('f-marginX').value = p.position.marginX;
-    $('f-marginY').value = p.position.marginY;
+    const pos = p.position || {};
+    $('f-corner').value = pos.corner || 'bottom-right';
+    $('f-marginX').value = Number.isFinite(Number(pos.marginX)) ? pos.marginX : 24;
+    $('f-marginY').value = Number.isFinite(Number(pos.marginY)) ? pos.marginY : 100;
 }
 function readForm() {
     const p = pets.find((x) => x.id === selId);
@@ -47,6 +48,7 @@ function readForm() {
         return;
     p.name = $('f-name').value.trim() || p.id;
     p.size = Math.max(120, Number($('f-size').value) || p.size);
+    p.position = p.position || {};
     p.position.corner = $('f-corner').value;
     p.position.marginX = Number($('f-marginX').value) || 0;
     p.position.marginY = Number($('f-marginY').value) || 0;
@@ -167,5 +169,5 @@ for (const id of ['f-name', 'f-size', 'f-corner', 'f-marginX', 'f-marginY']) {
         renderChips();
     });
 }
-void load();
+void load().catch((e) => msg('加载配置失败：' + e.message, true));
 void showMeta();
