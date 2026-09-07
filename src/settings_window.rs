@@ -29,8 +29,8 @@ fn build(shared: &Shared, visible: bool) -> Result<(), String> {
         .min_inner_size(520.0, 420.0)
         .decorations(true)
         .transparent(false)
-        // 与宠物窗同为置顶：保证设置窗打开时位于宠物窗之上，X 不被透明宠物窗挡住
-        .always_on_top(true)
+        // 普通窗口（不置顶）：宠物窗是透明置顶窗，靠宠物窗自身的点击穿透把 X 的点击漏给本窗。
+        // 若两窗都置顶会互相抢 z-order，透明宠物窗反会盖住本窗 X 并吞掉点击。
         .skip_taskbar(true)
         .resizable(true)
         .visible(visible)

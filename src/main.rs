@@ -91,6 +91,8 @@ fn main() {
 
             // 管理状态 + 初始宠物窗
             app.manage(shared.clone());
+            #[cfg(windows)]
+            passthrough::start_poller(app.handle().clone());
             let _ = settings_window::prepare(&shared);
             let merged = config::read_merged(&asset_root, &user_dir)?;
             let n = pet_windows::rebuild(&shared, &merged)?;

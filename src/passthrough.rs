@@ -1,202 +1,134 @@
-//! passthrough.rs —— WM_NCHITTEST 原生区域级穿透（仅 Windows）。
+//! passthrough.rs —— Windows 原生点击穿透（WS_EX_TRANSPARENT + 光标轮询，仅 Windows）。
 //!
-//! 透明置顶宠物窗里：**只有宠物命中框区域可交互（HTCLIENT）**，其余（透明外扩区）真实
-//! 点击穿透（HTTRANSPARENT）；菜单/弹窗等需要整窗可交互时由 `set_full(label,true)` 切换
-//! （对应前端 sprite 的 setInteractive(true)）。
+//! 与 dsh-pet-indesktop 同方案：宠物窗默认对鼠标「整窗穿透」（WS_EX_TRANSPARENT），
+//! 光标进入宠物命中框时由轮询线程去掉该样式、让窗口可交互（点击/拖拽/右键菜单），
+//! 光标离开命中框即恢复穿透；菜单/拖拽/弹窗需要整窗可交互时由前端 setInteractive(true)
+//! 强制（对应 full 标记）。
 //!
-//! 实现：SetWindowLongPtrW(GWLP_WNDPROC) 子类化并拦截 WM_NCHITTEST。屏幕坐标→客户区坐标
-//! 用 GetWindowRect/GetClientRect 换算；命中框几何与前端 sprite（HIT_BOX 200,50,440,335）
-//! 一致，由 window.rs 每次 set_bounds 同步。
+//! 相比旧的 WM_NCHITTEST→HTTRANSPARENT 区域穿透，WS_EX_TRANSPARENT 对「下层窗口的非客户区
+//! （如设置窗标题栏 X）」的点击穿透更可靠，不会吞掉下层应用的点击。
 
 #![cfg(windows)]
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
-use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows_sys::Win32::Foundation::{HWND, POINT};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallWindowProcW, GetClientRect, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW,
-    GWLP_USERDATA, GWLP_WNDPROC, HTCLIENT, HTTRANSPARENT, WM_NCDESTROY, WM_NCHITTEST,
+    GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_TRANSPARENT,
 };
 
-type WndProc = Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT>;
-
-const HTCLIENT_I: isize = HTCLIENT as isize;
-const HTTRANSPARENT_I: isize = HTTRANSPARENT as isize;
-
-struct Control {
-    original_proc: isize,
+struct Entry {
+    /// 原生窗口句柄（存数值，绕过 raw pointer 的 !Send/!Sync）。
+    hwnd: usize,
+    /// 前端强制整窗可交互（拖拽/菜单/弹窗）。
     full: AtomicBool,
+    /// 命中框（屏幕物理坐标）。
     rect: Mutex<(f64, f64, f64, f64)>,
+    /// 当前已应用的「可交互」状态（避免重复 SetWindowLongPtrW 造成闪烁）。
+    interactive: AtomicBool,
 }
 
-/// label -> (hwnd, 控制块指针)
-static REGISTRY: OnceLock<Mutex<HashMap<String, (usize, usize)>>> = OnceLock::new();
+static REGISTRY: OnceLock<Mutex<HashMap<String, Arc<Entry>>>> = OnceLock::new();
 
-fn registry() -> &'static Mutex<HashMap<String, (usize, usize)>> {
+fn registry() -> &'static Mutex<HashMap<String, Arc<Entry>>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-unsafe fn control_of(hwnd: HWND) -> *mut Control {
-    GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Control
-}
-
-fn remove_registry_by(ptr: usize, hwnd: usize) {
-    let mut reg = registry().lock().unwrap();
-    let mut key = None;
-    for (k, (h, p)) in reg.iter() {
-        if *p == ptr && *h == hwnd {
-            key = Some(k.clone());
-            break;
-        }
-    }
-    if let Some(k) = key {
-        reg.remove(&k);
-    }
-}
-
-/// 屏幕坐标 → 窗口客户区坐标（frameless，直接用窗口矩形与客户区矩形换算）。
-unsafe fn screen_to_client(hwnd: HWND, sx: i32, sy: i32) -> Option<(i32, i32)> {
-    let mut wr = RECT {
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-    };
-    let mut cr = RECT {
-        left: 0,
-        top: 0,
-        right: 0,
-        bottom: 0,
-    };
-    if GetWindowRect(hwnd, &mut wr) == 0 || GetClientRect(hwnd, &mut cr) == 0 {
-        return None;
-    }
-    let dx = wr.left - cr.left;
-    let dy = wr.top - cr.top;
-    Some((sx - dx, sy - dy))
-}
-
-unsafe extern "system" fn wnd_proc(
-    hwnd: HWND,
-    msg: u32,
-    wparam: WPARAM,
-    lparam: LPARAM,
-) -> LRESULT {
-    let ctl = control_of(hwnd);
-    let orig = if ctl.is_null() {
-        0
-    } else {
-        (*ctl).original_proc
-    };
-    match msg {
-        WM_NCHITTEST if !ctl.is_null() => {
-            let c = &*ctl;
-            if c.full.load(Ordering::Relaxed) {
-                return HTCLIENT_I;
-            }
-            let sx = (lparam & 0xffff) as i16 as i32;
-            let sy = ((lparam >> 16) & 0xffff) as i16 as i32;
-            if let Some((cx, cy)) = screen_to_client(hwnd, sx, sy) {
-                let (rx, ry, rw, rh) = *c.rect.lock().unwrap();
-                let inside = (cx as f64) >= rx
-                    && (cx as f64) <= rx + rw
-                    && (cy as f64) >= ry
-                    && (cy as f64) <= ry + rh;
-                return if inside { HTCLIENT_I } else { HTTRANSPARENT_I };
-            }
-            return HTCLIENT_I;
-        }
-        WM_NCDESTROY if !ctl.is_null() => {
-            let orig_saved = (*ctl).original_proc;
-            let ptr = ctl as usize;
-            let hwnd_usize = hwnd as usize;
-            if orig_saved != 0 {
-                SetWindowLongPtrW(hwnd, GWLP_WNDPROC, orig_saved);
-            }
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-            remove_registry_by(ptr, hwnd_usize);
-            let _ = Box::from_raw(ctl);
-            return CallWindowProcW(
-                std::mem::transmute::<isize, WndProc>(orig_saved),
-                hwnd,
-                msg,
-                wparam,
-                lparam,
+/// 应用/移除整窗穿透（on=true 穿透，on=false 可交互）。幂等。
+fn apply_transparent(hwnd: usize, on: bool) {
+    unsafe {
+        let ex = GetWindowLongPtrW(hwnd as HWND, GWL_EXSTYLE) as u32;
+        let next = if on {
+            ex | WS_EX_TRANSPARENT
+        } else {
+            ex & !WS_EX_TRANSPARENT
+        };
+        if next != ex {
+            SetWindowLongPtrW(hwnd as HWND, GWL_EXSTYLE, next as isize);
+            // 刷新框架让样式立即生效（不改位置/尺寸/z序/激活态）
+            SetWindowPos(
+                hwnd as HWND,
+                std::ptr::null_mut(),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
             );
         }
-        _ => {}
     }
-    CallWindowProcW(
-        std::mem::transmute::<isize, WndProc>(orig),
-        hwnd,
-        msg,
-        wparam,
-        lparam,
-    )
 }
 
-/// 绑定窗口（创建后、主线程上调用一次）。hwnd 为原生窗口句柄（raw pointer）。
+/// 绑定窗口（创建后主线程调用一次）。初始为整窗穿透。
 pub fn attach(label: &str, hwnd: *mut core::ffi::c_void) {
-    if registry().lock().unwrap().contains_key(label) {
-        return;
-    }
-    let hwnd_typed = hwnd as HWND; // windows-sys HWND 即 *mut c_void
-    let boxed = Box::new(Control {
-        original_proc: 0,
+    let entry = Arc::new(Entry {
+        hwnd: hwnd as usize,
         full: AtomicBool::new(false),
         rect: Mutex::new((0.0, 0.0, 0.0, 0.0)),
+        interactive: AtomicBool::new(false),
     });
-    let raw = Box::into_raw(boxed);
-    let original = unsafe {
-        SetWindowLongPtrW(
-            hwnd_typed,
-            GWLP_WNDPROC,
-            wnd_proc as *const () as usize as isize,
-        )
-    };
-    unsafe {
-        (*raw).original_proc = original;
-        SetWindowLongPtrW(hwnd_typed, GWLP_USERDATA, raw as isize);
-    }
-    registry()
-        .lock()
-        .unwrap()
-        .insert(label.to_string(), (hwnd as usize, raw as usize));
+    apply_transparent(entry.hwnd, true); // 初始穿透
+    registry().lock().unwrap().insert(label.to_string(), entry);
 }
 
-/// 更新命中框（窗口客户区坐标）。
+/// 解除绑定（窗口关闭前）。幂等。
+pub fn detach(label: &str) {
+    if let Some(entry) = registry().lock().unwrap().remove(label) {
+        apply_transparent(entry.hwnd, false); // 还原，避免残留穿透样式
+    }
+}
+
+/// 更新命中框（屏幕物理坐标）。
 pub fn set_hit_rect(label: &str, rect: (f64, f64, f64, f64)) {
     let reg = registry().lock().unwrap();
-    if let Some((_, ptr)) = reg.get(label).copied() {
-        let ctl = ptr as *mut Control;
-        unsafe { *(*ctl).rect.lock().unwrap() = rect };
+    if let Some(e) = reg.get(label) {
+        *e.rect.lock().unwrap() = rect;
     }
 }
 
-/// 切换整窗可交互（菜单/弹窗 true；false 回到区域命中）。
+/// 强制整窗可交互（菜单/拖拽/弹窗 true；false 回到命中框判定）。
 pub fn set_full(label: &str, full: bool) {
     let reg = registry().lock().unwrap();
-    if let Some((_, ptr)) = reg.get(label).copied() {
-        let ctl = ptr as *mut Control;
-        unsafe { (*ctl).full.store(full, Ordering::Relaxed) };
+    if let Some(e) = reg.get(label) {
+        e.full.store(full, Ordering::Relaxed);
     }
 }
 
-/// 解除绑定（窗口关闭前）：恢复原 proc、释放控制块。幂等。
-pub fn detach(label: &str) {
-    let mut reg = registry().lock().unwrap();
-    if let Some((hwnd, ptr)) = reg.remove(label) {
-        let hwnd = hwnd as HWND;
-        let ctl = ptr as *mut Control;
-        let orig = unsafe { (*ctl).original_proc };
-        unsafe {
-            if orig != 0 {
-                SetWindowLongPtrW(hwnd, GWLP_WNDPROC, orig);
-            }
-            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
-            let _ = Box::from_raw(ctl);
+/// 启动光标轮询线程（进程级一次）。每 ~15ms 采样光标：命中框内或强制可交互 → 窗口可交互；
+/// 否则整窗穿透。
+pub fn start_poller(app: tauri::AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(15));
+        let mut cursor = POINT { x: 0, y: 0 };
+        if unsafe { GetCursorPos(&mut cursor) } == 0 {
+            continue;
         }
-    }
+        let cx = cursor.x as f64;
+        let cy = cursor.y as f64;
+        let mut changes: Vec<(usize, bool)> = Vec::new();
+        {
+            let reg = registry().lock().unwrap();
+            for e in reg.values() {
+                let full = e.full.load(Ordering::Relaxed);
+                let (rx, ry, rw, rh) = *e.rect.lock().unwrap();
+                let inside = cx >= rx && cx <= rx + rw && cy >= ry && cy <= ry + rh;
+                let desired = full || inside;
+                if desired != e.interactive.load(Ordering::Relaxed) {
+                    e.interactive.store(desired, Ordering::Relaxed);
+                    changes.push((e.hwnd, desired));
+                }
+            }
+        }
+        if !changes.is_empty() {
+            let _ = app.run_on_main_thread(move || {
+                for (hwnd, interactive) in changes {
+                    apply_transparent(hwnd, !interactive);
+                }
+            });
+        }
+    });
 }

@@ -88,6 +88,8 @@ pub fn set_bounds(
     size: f64,
     bottom: f64,
 ) {
+    // x/y/w/h/size/bottom 均为渲染端「逻辑(CSS)像素」；box_x/box_y 为包围盒左上角（逻辑）。
+    // 碰撞站场（static_boxes/flight）跨窗口共享，保持逻辑像素即可（所有宠同屏同缩放，一致）。
     if let Some(id) = shared.id_by_index(index) {
         shared.0.static_boxes.lock().unwrap().insert(
             id.clone(),
@@ -102,14 +104,27 @@ pub fn set_bounds(
     }
     let app = shared.0.app.clone();
     let label = format!("pet-{index}");
-    let rect = hit_rect(size, bottom);
+    let rect = hit_rect(size, bottom); // 逻辑命中框（窗口客户区坐标）
     let _ = app.clone().run_on_main_thread(move || {
         if let Some(win) = app.get_webview_window(&label) {
-            let _ = win.set_position(PhysicalPosition::new(x as i32, y as i32));
-            let _ = win.set_size(PhysicalSize::new(w.max(1.0) as u32, h.max(1.0) as u32));
+            let sf = win.scale_factor().unwrap_or(1.0).max(0.1);
+            let px = (x * sf) as i32;
+            let py = (y * sf) as i32;
+            let pw = (w.max(1.0) * sf) as u32;
+            let ph = (h.max(1.0) * sf) as u32;
+            let _ = win.set_position(PhysicalPosition::new(px, py));
+            let _ = win.set_size(PhysicalSize::new(pw, ph));
+            #[cfg(windows)]
+            passthrough::set_hit_rect(
+                &label,
+                (
+                    px as f64 + rect.0 * sf,
+                    py as f64 + rect.1 * sf,
+                    rect.2 * sf,
+                    rect.3 * sf,
+                ),
+            );
         }
-        #[cfg(windows)]
-        passthrough::set_hit_rect(&label, rect);
     });
 }
 
@@ -123,6 +138,8 @@ pub fn rebuild(shared: &Shared, merged: &serde_json::Value) -> Result<usize, Str
     close_all(shared);
     let pets = config::desktop_pets(merged);
     shared.reset_pets(&pets.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>());
+    // 工作区转成「逻辑(CSS)像素」下发给渲染端：渲染端全程用逻辑像素计算，
+    // set_bounds 再按窗口 scale_factor 换回物理像素，保证非 100% 缩放时位置/尺寸/命中框一致。
     let (mw, mh) = shared
         .0
         .app
@@ -131,7 +148,8 @@ pub fn rebuild(shared: &Shared, merged: &serde_json::Value) -> Result<usize, Str
         .flatten()
         .map(|m| {
             let s = m.size();
-            (s.width as f64, s.height as f64)
+            let sf = m.scale_factor().max(0.1);
+            ((s.width as f64) / sf, (s.height as f64) / sf)
         })
         .unwrap_or((1920.0, 1080.0));
     let api = shared.api_base();

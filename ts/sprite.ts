@@ -171,7 +171,21 @@ class PetSprite {
         // 光标离开窗口：菜单若开着立刻收起（菜单是窗口内 DOM，离开即不可达），再恢复穿透；
         // 对话弹窗开着则不恢复——弹窗是窗口内 DOM，鼠标还要回来点输入框（与 menuOpen 同守卫）
         this.closeMenu();
-        if (!this.chatOpen) this.setInteractive(false);
+        this.refreshInteractive();
+      },
+      { signal: ac.signal },
+    );
+
+    // 自愈兜底：窗口失焦时任何进行中的拖拽/菜单都视为结束，强制复位整窗可交互。
+    // 避免极端情况下（指针捕获失败、松手落在窗外）整窗可交互卡死、吞掉下层应用（如设置窗 X）的点击。
+    window.addEventListener(
+      'blur',
+      () => {
+        this.dragState.active = false;
+        this.dragState.dragging = false;
+        this.hit.classList.remove('dragging');
+        this.closeMenu();
+        this.refreshInteractive();
       },
       { signal: ac.signal },
     );
@@ -705,6 +719,8 @@ class PetSprite {
       petX: this.pos.x,
       petY: this.pos.y,
     };
+    // 按下即进入「整窗可交互」，避免弹簧跟手滞后时光标暂时脱出命中框、被穿透打断拖拽
+    this.refreshInteractive();
     // 注意：舞台「拍平」（去掉 translateY(bottomPad)）不能在这里做——
     // 纯点击（按下即松开）会让人物瞬移上移再落下。与浏览器一致：只有拖拽超过阈值才拍平。
   }
@@ -739,7 +755,7 @@ class PetSprite {
     const wasDragging = d.dragging;
     d.active = false;
     d.dragging = false;
-    this.setInteractive(false); // 拖拽结束：恢复“仅命中框可交互”
+    this.refreshInteractive(); // 拖拽结束：恢复“仅命中框可交互”
     this.hit.classList.remove('dragging');
     this.stopDragFollow(); // 弹簧跟随立即停（位置定格在实时 this.pos）
     this.stage.style.transform = 'translateY(' + this.bottomPad + 'px)';
@@ -807,15 +823,21 @@ class PetSprite {
     if (window.petBridge) window.petBridge.setInteractive(next);
   }
 
+  // 由「真实原因」统一推导整窗可交互态：拖拽中 / 菜单开 / 弹窗开。集中收口，
+  // 避免散落的 setInteractive(true/false) 因某条路径漏复位而卡死成整窗可交互（吞掉下层点击）。
+  refreshInteractive() {
+    this.setInteractive(this.dragState.active || this.menuOpen || this.chatOpen);
+  }
+
   onMouseMove(e) {
     // 拖拽中窗口逐帧跟随光标、指针相对窗口坐标会有帧级抖动——强制保持可交互，绝不翻转（翻转会断拖拽）
     if (this.dragState.active) {
-      this.setInteractive(true);
+      this.refreshInteractive();
       return;
     }
     // 右键菜单/对话弹窗开启：整窗保持可交互（悬停菜单项/点输入框都不触发穿透翻转）；关闭后恢复命中区判定
     if (this.menuOpen || this.chatOpen) {
-      this.setInteractive(true);
+      this.refreshInteractive();
       return;
     }
     // 注意：不要做“悬停命中区 → 整窗可交互”的切换。原生 WM_NCHITTEST 已按命中框精确放行，
@@ -858,7 +880,7 @@ class PetSprite {
     const tree = tools.concat(S.buildMenuTree(this.animations));
     if (!tree.length) return;
     this.menuOpen = true;
-    this.setInteractive(true); // 菜单是窗口内 DOM：悬停期间整窗保持可交互，关闭后恢复命中区穿透
+    this.refreshInteractive(); // 菜单是窗口内 DOM：悬停期间整窗保持可交互，关闭后恢复命中区穿透
     window.__dshPetDebug.menuOpen = true;
     const m = S.mountContextMenu({
       tree,
@@ -869,7 +891,7 @@ class PetSprite {
       onClose: () => {
         this.menuOpen = false;
         window.__dshPetDebug.menuOpen = false;
-        this.setInteractive(false);
+        this.refreshInteractive();
       },
     });
     this.menuClose = m.close;
@@ -913,7 +935,7 @@ class PetSprite {
     }
     this.menuOpen = false;
     window.__dshPetDebug.menuOpen = false;
-    this.setInteractive(false); // 关闭菜单后恢复“仅命中框可交互”，避免透明区吞鼠标
+    this.refreshInteractive(); // 关闭菜单后恢复“仅命中框可交互”，避免透明区吞鼠标
   }
 
   // 「回到初始位置」菜单：停掉漫游/移动，清掉拖拽/漫游留下的会话位置，回到配置角落
